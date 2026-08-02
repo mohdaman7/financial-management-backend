@@ -12,7 +12,9 @@ export class AuditController {
     try {
       const companyId = req.companyId as string;
       // Super admins can view all or switch context. Regular employees don't have access.
-      const logs = await this.getAuditService().getLogs(req.user?.isSuperAdmin ? undefined : companyId);
+      const logs = await this.getAuditService().getLogs(
+        req.user?.isSuperAdmin ? undefined : companyId,
+      );
       res.status(200).json(ResponseFormatter.success(logs));
     } catch (error) {
       next(error);

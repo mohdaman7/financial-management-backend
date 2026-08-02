@@ -42,13 +42,7 @@ const controller = new CompanyController();
  *       409:
  *         description: Code already exists
  */
-router.post(
-  '/',
-  authenticate,
-  requireSuperAdmin,
-  validate(createCompanySchema),
-  controller.create,
-);
+router.post('/', authenticate, requireSuperAdmin, validate(createCompanySchema), controller.create);
 
 /**
  * @openapi

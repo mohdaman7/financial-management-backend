@@ -88,7 +88,9 @@ describe('Operations, Auditing, Exports and Notifications Tests', () => {
       expect(successLogs.body.success).toBe(true);
       expect(successLogs.body.data.length).toBeGreaterThanOrEqual(1);
 
-      const log = successLogs.body.data.find((l: any) => l.action.includes('POST /api/v1/travel/customers'));
+      const log = successLogs.body.data.find((l: any) =>
+        l.action.includes('POST /api/v1/travel/customers'),
+      );
       expect(log).toBeDefined();
       expect(log.userId.email).toBe('ops@opscorp.com');
     });

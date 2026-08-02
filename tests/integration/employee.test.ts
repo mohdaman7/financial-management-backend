@@ -2,12 +2,10 @@ import { getTestAgent } from '../helpers/testApp';
 import { CompanyModel } from '../../src/modules/company/infrastructure/models/Company.model';
 import { RoleModel } from '../../src/modules/auth/infrastructure/models/Role.model';
 import { UserModel } from '../../src/modules/auth/infrastructure/models/User.model';
-import { EmployeeModel } from '../../src/modules/employee/infrastructure/models/Employee.model';
 import bcrypt from 'bcrypt';
 import { Types } from 'mongoose';
 
 describe('Employee Module Integration Tests', () => {
-  let company1Id: string;
   let company2Id: string;
   let managerToken: string;
   let employeeRoleId: string;
@@ -15,7 +13,6 @@ describe('Employee Module Integration Tests', () => {
   beforeEach(async () => {
     // 1. Seed Companies
     const company1 = await CompanyModel.create({ name: 'Alpha Inc', code: 'ALPHA' });
-    company1Id = company1._id.toString();
 
     const company2 = await CompanyModel.create({ name: 'Beta Inc', code: 'BETA' });
     company2Id = company2._id.toString();

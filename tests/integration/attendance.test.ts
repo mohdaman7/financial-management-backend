@@ -7,12 +7,10 @@ import { Types } from 'mongoose';
 
 describe('Attendance Module Integration Tests', () => {
   let employeeToken: string;
-  let companyId: string;
 
   beforeEach(async () => {
     // 1. Seed Company
     const company = await CompanyModel.create({ name: 'Alpha Inc', code: 'ALPHA' });
-    companyId = company._id.toString();
 
     // 2. Seed Employee Role
     const role = await RoleModel.create({

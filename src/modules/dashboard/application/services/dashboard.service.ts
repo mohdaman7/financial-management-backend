@@ -66,15 +66,17 @@ export class DashboardService {
     const recentTransactions = txs.slice(0, 5).map((tx) => ({
       id: tx._id.toString(),
       description:
-        tx.description ||
-        `${tx.type === 'income' ? 'Income' : 'Expense'} - ${tx.category}`,
+        tx.description || `${tx.type === 'income' ? 'Income' : 'Expense'} - ${tx.category}`,
       amount: tx.amount,
       type: tx.type,
       date: tx.date.toISOString(),
     }));
 
     // 4. Get travel bookings and compute actual travel metrics
-    const travelBookings = await require('../../../travel/infrastructure/models/TravelBooking.model').TravelBookingModel.find({ companyId });
+    const travelBookings =
+      await require('../../../travel/infrastructure/models/TravelBooking.model').TravelBookingModel.find(
+        { companyId },
+      );
     let visaPending = 0;
     let ticketsIssued = 0;
     let activeTours = 0;

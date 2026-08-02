@@ -106,7 +106,12 @@ router.get('/history', authenticate, validate(historyQuerySchema, 'query'), cont
  *       200:
  *         description: Statistics summary
  */
-router.get('/summary', authenticate, validate(summaryQuerySchema, 'query'), controller.getMonthlySummary);
+router.get(
+  '/summary',
+  authenticate,
+  validate(summaryQuerySchema, 'query'),
+  controller.getMonthlySummary,
+);
 
 /**
  * @openapi

@@ -16,7 +16,7 @@ export function auditLogger() {
         // Only log if the request was authenticated and was successful (2xx status)
         if (req.user?.id && res.statusCode >= 200 && res.statusCode < 300) {
           const auditService = Container.resolve<AuditService>('AuditService');
-          
+
           let sanitizedBody = { ...req.body };
           // Don't log sensitive values like password
           if (sanitizedBody.password) delete sanitizedBody.password;

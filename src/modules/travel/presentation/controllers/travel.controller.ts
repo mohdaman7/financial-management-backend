@@ -83,11 +83,7 @@ export class TravelController {
     }
   };
 
-  updateProposalStatus = async (
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> => {
+  updateProposalStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const id = req.params.id as string;
       const { status } = req.body as { status: 'draft' | 'sent' | 'approved' | 'rejected' };

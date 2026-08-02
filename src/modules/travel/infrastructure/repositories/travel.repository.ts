@@ -26,7 +26,10 @@ export class TravelRepository {
     return customer.save();
   }
 
-  async updateCustomer(id: string, data: Partial<ITravelCustomer>): Promise<ITravelCustomer | null> {
+  async updateCustomer(
+    id: string,
+    data: Partial<ITravelCustomer>,
+  ): Promise<ITravelCustomer | null> {
     return TravelCustomerModel.findByIdAndUpdate(id, data, { new: true }).exec();
   }
 
@@ -35,7 +38,10 @@ export class TravelRepository {
     return TravelBookingModel.findById(id).populate('customerId').exec();
   }
 
-  async findBookingsByCompany(companyId: string, filters: { status?: string }): Promise<ITravelBooking[]> {
+  async findBookingsByCompany(
+    companyId: string,
+    filters: { status?: string },
+  ): Promise<ITravelBooking[]> {
     const query: any = { companyId: new Types.ObjectId(companyId) };
     if (filters.status) {
       query.status = filters.status;
@@ -49,7 +55,9 @@ export class TravelRepository {
   }
 
   async updateBooking(id: string, data: Partial<ITravelBooking>): Promise<ITravelBooking | null> {
-    return TravelBookingModel.findByIdAndUpdate(id, data, { new: true }).populate('customerId').exec();
+    return TravelBookingModel.findByIdAndUpdate(id, data, { new: true })
+      .populate('customerId')
+      .exec();
   }
 
   // --- Proposals ---
@@ -68,7 +76,10 @@ export class TravelRepository {
     return proposal.save();
   }
 
-  async updateProposal(id: string, data: Partial<ITravelProposal>): Promise<ITravelProposal | null> {
+  async updateProposal(
+    id: string,
+    data: Partial<ITravelProposal>,
+  ): Promise<ITravelProposal | null> {
     return TravelProposalModel.findByIdAndUpdate(id, data, { new: true }).exec();
   }
 

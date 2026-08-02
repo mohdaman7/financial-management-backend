@@ -60,10 +60,7 @@ export function requireSuperAdmin(req: Request, _res: Response, next: NextFuncti
 
   if (!user.isSuperAdmin) {
     next(
-      AppError.forbidden(
-        'Access denied: Super Admin privilege required',
-        'SUPER_ADMIN_REQUIRED',
-      ),
+      AppError.forbidden('Access denied: Super Admin privilege required', 'SUPER_ADMIN_REQUIRED'),
     );
     return;
   }

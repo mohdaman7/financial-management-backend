@@ -7,12 +7,10 @@ import { Types } from 'mongoose';
 
 describe('Travel Module Integration Tests', () => {
   let travelToken: string;
-  let companyId: string;
 
   beforeEach(async () => {
     // 1. Seed Company
     const company = await CompanyModel.create({ name: 'Travel Agency', code: 'TRAVAG' });
-    companyId = company._id.toString();
 
     // 2. Seed Travel Role
     const role = await RoleModel.create({

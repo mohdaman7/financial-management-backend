@@ -63,7 +63,9 @@ export class FinanceController {
     try {
       const id = req.params.id as string;
       await this.getFinanceService().deleteTransaction(id);
-      res.status(200).json(ResponseFormatter.success({ message: 'Transaction deleted successfully' }));
+      res
+        .status(200)
+        .json(ResponseFormatter.success({ message: 'Transaction deleted successfully' }));
     } catch (error) {
       next(error);
     }
@@ -103,7 +105,7 @@ export class FinanceController {
       // Generate CSV
       let csv = 'Profit & Loss Statement\n';
       csv += `Period,${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}\n\n`;
-      
+
       csv += 'REVENUE\n';
       for (const [category, amount] of Object.entries(statement.revenueByCategory)) {
         csv += `${category},${amount.toFixed(2)}\n`;

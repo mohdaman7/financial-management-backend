@@ -30,7 +30,8 @@ describe('Dashboard Module Integration Tests', () => {
       roleId: role._id as Types.ObjectId,
     });
 
-    const empModel = require('../../src/modules/employee/infrastructure/models/Employee.model').EmployeeModel;
+    const empModel =
+      require('../../src/modules/employee/infrastructure/models/Employee.model').EmployeeModel;
     await empModel.create({
       userId: user._id,
       companyId: company._id,
@@ -50,7 +51,8 @@ describe('Dashboard Module Integration Tests', () => {
     employeeToken = loginRes.body.data.accessToken;
 
     // Seed transaction data
-    const txModel = require('../../src/modules/finance/infrastructure/models/Transaction.model').TransactionModel;
+    const txModel =
+      require('../../src/modules/finance/infrastructure/models/Transaction.model').TransactionModel;
     await txModel.create({
       companyId: company._id,
       type: 'income',
@@ -79,8 +81,10 @@ describe('Dashboard Module Integration Tests', () => {
     });
 
     // Seed travel booking data
-    const bkModel = require('../../src/modules/travel/infrastructure/models/TravelBooking.model').TravelBookingModel;
-    const custModel = require('../../src/modules/travel/infrastructure/models/TravelCustomer.model').TravelCustomerModel;
+    const bkModel =
+      require('../../src/modules/travel/infrastructure/models/TravelBooking.model').TravelBookingModel;
+    const custModel =
+      require('../../src/modules/travel/infrastructure/models/TravelCustomer.model').TravelCustomerModel;
     const travelCustomer = await custModel.create({
       companyId: company._id,
       name: 'Customer Test',
@@ -120,7 +124,7 @@ describe('Dashboard Module Integration Tests', () => {
       expect(response.body.data.kpis.pendingPayments).toBe(500);
       expect(response.body.data.kpis.totalEmployees).toBe(1);
       expect(response.body.data.recentTransactions.length).toBe(3);
-      
+
       // Verify travel analytics
       expect(response.body.data).toHaveProperty('travelAnalytics');
       expect(response.body.data.travelAnalytics.visaPending).toBe(1);

@@ -3,7 +3,6 @@ import { EmployeeRepository } from '../../infrastructure/repositories/employee.r
 import { UserRepository } from '../../../auth/infrastructure/repositories/user.repository';
 import { IEmployee } from '../../infrastructure/models/Employee.model';
 import { AppError } from '@shared/errors/AppError';
-import bcrypt from 'bcrypt';
 
 export class EmployeeService {
   constructor(
