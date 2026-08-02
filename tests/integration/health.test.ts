@@ -4,11 +4,11 @@ describe('Health Check', () => {
   it('GET /api/v1/health should return health status', async () => {
     const response = await getTestAgent().get('/api/v1/health');
 
-    expect(response.status).toBe(503);
+    expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
     expect(response.body.data).toMatchObject({
-      status: 'degraded',
-      database: 'disconnected',
+      status: 'healthy',
+      database: 'connected',
     });
     expect(response.body.data.uptime).toBeGreaterThanOrEqual(0);
     expect(response.body.data.timestamp).toBeDefined();

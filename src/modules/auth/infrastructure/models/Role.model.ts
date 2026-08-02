@@ -1,10 +1,10 @@
-import { Schema, model, Document } from 'mongoose';
+import { Schema, model, Document, Types } from 'mongoose';
 
 export interface IRole extends Document {
   name: string;
   description: string;
   permissions: string[];
-  companyId?: Schema.Types.ObjectId; // Optional: Null means global role, otherwise company-scoped
+  companyId?: Types.ObjectId; // Optional: Null means global role, otherwise company-scoped
   createdAt: Date;
   updatedAt: Date;
 }

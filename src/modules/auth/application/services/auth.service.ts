@@ -47,11 +47,11 @@ export class AuthService {
     };
 
     const accessToken = jwt.sign(payload, config.JWT_ACCESS_SECRET, {
-      expiresIn: config.JWT_ACCESS_EXPIRES_IN,
+      expiresIn: config.JWT_ACCESS_EXPIRES_IN as any,
     });
 
     const refreshToken = jwt.sign({ id: user._id.toString() }, config.JWT_REFRESH_SECRET, {
-      expiresIn: config.JWT_REFRESH_EXPIRES_IN,
+      expiresIn: config.JWT_REFRESH_EXPIRES_IN as any,
     });
 
     return { accessToken, refreshToken };
@@ -86,8 +86,8 @@ export class AuthService {
         id: user._id.toString(),
         email: user.email,
         isSuperAdmin: user.isSuperAdmin,
-        companyId: user.companyId,
-        roleId: user.roleId,
+        companyId: user.companyId?.toString(),
+        roleId: user.roleId?.toString(),
       },
     };
   }

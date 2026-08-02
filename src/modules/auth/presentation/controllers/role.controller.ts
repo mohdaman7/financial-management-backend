@@ -23,7 +23,7 @@ export class RoleController {
 
   getById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const role = await this.getRoleService().getRoleById(id);
       res.status(200).json(ResponseFormatter.success(role));
     } catch (error) {
@@ -43,7 +43,7 @@ export class RoleController {
 
   update = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const role = await this.getRoleService().updateRole(id, req.body);
       res.status(200).json(ResponseFormatter.success(role));
     } catch (error) {
@@ -53,7 +53,7 @@ export class RoleController {
 
   delete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       await this.getRoleService().deleteRole(id);
       res.status(200).json(ResponseFormatter.success({ message: 'Role deleted successfully' }));
     } catch (error) {

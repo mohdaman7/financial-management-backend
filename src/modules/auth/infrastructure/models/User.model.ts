@@ -1,14 +1,14 @@
-import { Schema, model, Document } from 'mongoose';
+import { Schema, model, Document, Types } from 'mongoose';
 
 export interface IUser extends Document {
   email: string;
   passwordHash: string;
   isSuperAdmin: boolean;
-  companyId?: Schema.Types.ObjectId; // Null for Super Admins unless viewing a specific company
-  roleId?: Schema.Types.ObjectId; // Reference to their role
+  companyId?: Types.ObjectId; // Null for Super Admins unless viewing a specific company
+  roleId?: Types.ObjectId; // Reference to their role
   status: 'active' | 'inactive';
   refreshToken?: string;
-  currentCompanyId?: Schema.Types.ObjectId; // For Super Admins switching company dashboard context
+  currentCompanyId?: Types.ObjectId; // For Super Admins switching company dashboard context
   createdAt: Date;
   updatedAt: Date;
 }

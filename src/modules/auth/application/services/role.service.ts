@@ -1,3 +1,4 @@
+import { Types } from 'mongoose';
 import { RoleRepository } from '../../infrastructure/repositories/role.repository';
 import { IRole } from '../../infrastructure/models/Role.model';
 import { AppError } from '@shared/errors/AppError';
@@ -16,7 +17,12 @@ export class RoleService {
       throw AppError.conflict('Role with this name already exists for the company');
     }
 
-    return this.roleRepository.create(data);
+    return this.roleRepository.create({
+      name: data.name,
+      description: data.description,
+      permissions: data.permissions,
+      companyId: data.companyId ? new Types.ObjectId(data.companyId) : undefined,
+    });
   }
 
   async getRoleById(id: string): Promise<IRole> {

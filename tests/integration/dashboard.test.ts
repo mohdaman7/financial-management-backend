@@ -1,0 +1,55 @@
+import { getTestAgent } from '../helpers/testApp';
+import { CompanyModel } from '../../src/modules/company/infrastructure/models/Company.model';
+import { RoleModel } from '../../src/modules/auth/infrastructure/models/Role.model';
+import { UserModel } from '../../src/modules/auth/infrastructure/models/User.model';
+import bcrypt from 'bcrypt';
+import { Types } from 'mongoose';
+
+describe('Dashboard Module Integration Tests', () => {
+  let employeeToken: string;
+
+  beforeEach(async () => {
+    // 1. Seed Company
+    const company = await CompanyModel.create({ name: 'Alpha Inc', code: 'ALPHA' });
+
+    // 2. Seed Employee Role
+    const role = await RoleModel.create({
+      name: 'Employee',
+      description: 'Employee role',
+      permissions: ['view_employees'],
+      companyId: company._id as Types.ObjectId,
+    });
+
+    // 3. Seed Employee User
+    const passwordHash = await bcrypt.hash('password123', 10);
+    await UserModel.create({
+      email: 'employee@alpha.com',
+      passwordHash,
+      isSuperAdmin: false,
+      companyId: company._id as Types.ObjectId,
+      roleId: role._id as Types.ObjectId,
+    });
+
+    // Login Employee
+    const loginRes = await getTestAgent().post('/api/v1/auth/login').send({
+      email: 'employee@alpha.com',
+      password: 'password123',
+    });
+    employeeToken = loginRes.body.data.accessToken;
+  });
+
+  describe('GET /api/v1/dashboard', () => {
+    it('should return aggregated dashboard metrics', async () => {
+      const response = await getTestAgent()
+        .get('/api/v1/dashboard')
+        .set('Authorization', `Bearer ${employeeToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toHaveProperty('kpis');
+      expect(response.body.data.kpis).toHaveProperty('totalEmployees');
+      expect(response.body.data).toHaveProperty('attendanceRate');
+      expect(response.body.data).toHaveProperty('recentTransactions');
+    });
+  });
+});

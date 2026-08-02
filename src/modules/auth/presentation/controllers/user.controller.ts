@@ -32,7 +32,7 @@ export class UserController {
 
   getById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const user = await this.getUserService().getUserById(id);
       res.status(200).json(
         ResponseFormatter.success({
@@ -73,7 +73,7 @@ export class UserController {
 
   update = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const user = await this.getUserService().updateUser(id, req.body);
       res.status(200).json(
         ResponseFormatter.success({
@@ -92,7 +92,7 @@ export class UserController {
 
   delete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       await this.getUserService().deleteUser(id);
       res.status(200).json(ResponseFormatter.success({ message: 'User deleted successfully' }));
     } catch (error) {

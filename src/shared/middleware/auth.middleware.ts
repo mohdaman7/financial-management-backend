@@ -51,6 +51,26 @@ export function requirePermission(permission: string) {
   };
 }
 
+export function requireSuperAdmin(req: Request, _res: Response, next: NextFunction): void {
+  const user = req.user;
+  if (!user) {
+    next(AppError.unauthorized());
+    return;
+  }
+
+  if (!user.isSuperAdmin) {
+    next(
+      AppError.forbidden(
+        'Access denied: Super Admin privilege required',
+        'SUPER_ADMIN_REQUIRED',
+      ),
+    );
+    return;
+  }
+
+  next();
+}
+
 export function authorizeCompany(req: Request, _res: Response, next: NextFunction): void {
   const user = req.user;
   if (!user) {
@@ -67,7 +87,7 @@ export function authorizeCompany(req: Request, _res: Response, next: NextFunctio
 
   // Regular Employee is locked to their companyId
   const requestedCompanyId =
-    req.headers['x-company-id']?.toString() || req.params.companyId || req.body.companyId;
+    req.headers['x-company-id']?.toString() || req.params.companyId || req.body?.companyId;
 
   if (requestedCompanyId && requestedCompanyId !== user.companyId) {
     next(
