@@ -222,6 +222,35 @@ router.get(
 
 /**
  * @openapi
+ * /finance/reports/profit-loss/export:
+ *   get:
+ *     tags:
+ *       - Finance & Accounting
+ *     summary: Export Profit & Loss statement as CSV
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         required: true
+ *       - in: query
+ *         name: endDate
+ *         required: true
+ *     responses:
+ *       200:
+ *         description: CSV file download
+ */
+router.get(
+  '/reports/profit-loss/export',
+  authenticate,
+  requirePermission('view_finance'),
+  authorizeCompany,
+  validate(reportRangeSchema, 'query'),
+  controller.exportProfitAndLoss,
+);
+
+/**
+ * @openapi
  * /finance/reports/cash-flow:
  *   get:
  *     tags:
@@ -253,6 +282,35 @@ router.get(
   authorizeCompany,
   validate(reportRangeSchema, 'query'),
   controller.getCashFlow,
+);
+
+/**
+ * @openapi
+ * /finance/reports/cash-flow/export:
+ *   get:
+ *     tags:
+ *       - Finance & Accounting
+ *     summary: Export Cash Flow statement as CSV
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         required: true
+ *       - in: query
+ *         name: endDate
+ *         required: true
+ *     responses:
+ *       200:
+ *         description: CSV file download
+ */
+router.get(
+  '/reports/cash-flow/export',
+  authenticate,
+  requirePermission('view_finance'),
+  authorizeCompany,
+  validate(reportRangeSchema, 'query'),
+  controller.exportCashFlow,
 );
 
 export default router;

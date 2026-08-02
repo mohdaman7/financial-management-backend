@@ -9,6 +9,8 @@ import attendanceRoutes from '@modules/attendance/presentation/routes/attendance
 import dashboardRoutes from '@modules/dashboard/presentation/routes/dashboard.routes';
 import financeRoutes from '@modules/finance/presentation/routes/finance.routes';
 import travelRoutes from '@modules/travel/presentation/routes/travel.routes';
+import auditRoutes from '@modules/audit/presentation/routes/audit.routes';
+import notificationRoutes from '@modules/notification/presentation/routes/notification.routes';
 
 const router = Router();
 
@@ -22,5 +24,7 @@ router.use('/attendance', attendanceRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/finance', financeRoutes);
 router.use('/travel', travelRoutes);
+router.use('/audit-logs', auditRoutes);
+router.use('/notifications', notificationRoutes);
 
 export default router;

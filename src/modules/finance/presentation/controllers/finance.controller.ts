@@ -72,8 +72,9 @@ export class FinanceController {
   getProfitAndLoss = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const companyId = req.companyId as string;
-      // Zod validation transforms startDate/endDate strings to Dates, so we can cast directly
-      const { startDate, endDate } = req.query as unknown as { startDate: Date; endDate: Date };
+      const { startDate: qStart, endDate: qEnd } = req.query as any;
+      const startDate = qStart instanceof Date ? qStart : new Date(qStart);
+      const endDate = qEnd instanceof Date ? qEnd : new Date(qEnd);
 
       const statement = await this.getFinanceService().getProfitAndLoss(
         companyId,
@@ -86,13 +87,87 @@ export class FinanceController {
     }
   };
 
+  exportProfitAndLoss = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const companyId = req.companyId as string;
+      const { startDate: qStart, endDate: qEnd } = req.query as any;
+      const startDate = qStart instanceof Date ? qStart : new Date(qStart);
+      const endDate = qEnd instanceof Date ? qEnd : new Date(qEnd);
+
+      const statement = await this.getFinanceService().getProfitAndLoss(
+        companyId,
+        startDate,
+        endDate,
+      );
+
+      // Generate CSV
+      let csv = 'Profit & Loss Statement\n';
+      csv += `Period,${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}\n\n`;
+      
+      csv += 'REVENUE\n';
+      for (const [category, amount] of Object.entries(statement.revenueByCategory)) {
+        csv += `${category},${amount.toFixed(2)}\n`;
+      }
+      csv += `Total Revenue,${statement.totalRevenue.toFixed(2)}\n\n`;
+
+      csv += 'EXPENSES\n';
+      for (const [category, amount] of Object.entries(statement.expensesByCategory)) {
+        csv += `${category},${amount.toFixed(2)}\n`;
+      }
+      csv += `Total Expenses,${statement.totalExpenses.toFixed(2)}\n\n`;
+      csv += `Net Profit,${statement.netProfit.toFixed(2)}\n`;
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename=profit_and_loss.csv');
+      res.status(200).send(csv);
+    } catch (error) {
+      next(error);
+    }
+  };
+
   getCashFlow = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const companyId = req.companyId as string;
-      const { startDate, endDate } = req.query as unknown as { startDate: Date; endDate: Date };
+      const { startDate: qStart, endDate: qEnd } = req.query as any;
+      const startDate = qStart instanceof Date ? qStart : new Date(qStart);
+      const endDate = qEnd instanceof Date ? qEnd : new Date(qEnd);
 
       const statement = await this.getFinanceService().getCashFlow(companyId, startDate, endDate);
       res.status(200).json(ResponseFormatter.success(statement));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  exportCashFlow = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const companyId = req.companyId as string;
+      const { startDate: qStart, endDate: qEnd } = req.query as any;
+      const startDate = qStart instanceof Date ? qStart : new Date(qStart);
+      const endDate = qEnd instanceof Date ? qEnd : new Date(qEnd);
+
+      const statement = await this.getFinanceService().getCashFlow(companyId, startDate, endDate);
+
+      // Generate CSV
+      let csv = 'Cash Flow Statement\n';
+      csv += `Period,${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}\n\n`;
+
+      csv += 'CASH INFLOWS\n';
+      for (const [method, amount] of Object.entries(statement.inflow.byMethod)) {
+        csv += `${method},${amount.toFixed(2)}\n`;
+      }
+      csv += `Total Inflow,${statement.inflow.total.toFixed(2)}\n\n`;
+
+      csv += 'CASH OUTFLOWS\n';
+      for (const [method, amount] of Object.entries(statement.outflow.byMethod)) {
+        csv += `${method},${amount.toFixed(2)}\n`;
+      }
+      csv += `Total Outflow,${statement.outflow.total.toFixed(2)}\n\n`;
+      csv += `Net Cash Flow,${statement.netCashFlow.toFixed(2)}\n`;
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename=cash_flow.csv');
+      res.status(200).send(csv);
     } catch (error) {
       next(error);
     }

@@ -12,6 +12,7 @@ import { requestIdMiddleware } from '@shared/middleware/requestId.middleware';
 import { mongoSanitizeMiddleware } from '@shared/middleware/mongoSanitize.middleware';
 import { errorHandler, notFoundHandler } from '@shared/middleware/errorHandler.middleware';
 import { initializeContainer } from '@shared/di/index';
+import { auditLogger } from '@shared/middleware/audit.middleware';
 import routes from './routes';
 
 export function createApp(): Application {
@@ -59,6 +60,7 @@ export function createApp(): Application {
   }
 
   app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  app.use(auditLogger());
   app.use('/api/v1', routes);
 
   app.use(notFoundHandler);

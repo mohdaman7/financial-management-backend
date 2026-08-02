@@ -15,6 +15,9 @@ import { AttendanceService } from '@modules/attendance/application/services/atte
 import { DashboardService } from '@modules/dashboard/application/services/dashboard.service';
 import { FinanceService } from '@modules/finance/application/services/finance.service';
 import { TravelService } from '@modules/travel/application/services/travel.service';
+import { AuditService } from '@modules/audit/application/services/audit.service';
+import { NotificationService } from '@modules/notification/application/services/notification.service';
+import { EmailService } from '@shared/services/email.service';
 
 export function initializeContainer(): void {
   // Clear any existing registrations (helps during testing)
@@ -51,6 +54,9 @@ export function initializeContainer(): void {
   );
   const financeService = new FinanceService(transactionRepository);
   const travelService = new TravelService(travelRepository, transactionRepository);
+  const auditService = new AuditService();
+  const notificationService = new NotificationService();
+  const emailService = new EmailService();
 
   Container.register('AuthService', authService);
   Container.register('UserService', userService);
@@ -61,5 +67,8 @@ export function initializeContainer(): void {
   Container.register('DashboardService', dashboardService);
   Container.register('FinanceService', financeService);
   Container.register('TravelService', travelService);
+  Container.register('AuditService', auditService);
+  Container.register('NotificationService', notificationService);
+  Container.register('EmailService', emailService);
 }
 export { Container };
