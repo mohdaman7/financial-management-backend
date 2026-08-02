@@ -11,6 +11,7 @@ export interface ITransaction extends Document {
   status: 'pending' | 'completed' | 'cancelled';
   reference?: string;
   description?: string;
+  bankAccountId?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,6 +36,7 @@ const TransactionSchema = new Schema<ITransaction>(
     },
     reference: { type: String, trim: true, default: '' },
     description: { type: String, trim: true, default: '' },
+    bankAccountId: { type: Schema.Types.ObjectId, ref: 'BankAccount', default: null },
   },
   {
     timestamps: true,

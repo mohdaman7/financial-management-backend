@@ -26,7 +26,7 @@ export class TravelService {
     return this.travelRepository.createCustomer({
       ...data,
       companyId: new Types.ObjectId(companyId),
-      status: 'active',
+      status: 'new_lead',
     });
   }
 

@@ -11,6 +11,10 @@ import financeRoutes from '@modules/finance/presentation/routes/finance.routes';
 import travelRoutes from '@modules/travel/presentation/routes/travel.routes';
 import auditRoutes from '@modules/audit/presentation/routes/audit.routes';
 import notificationRoutes from '@modules/notification/presentation/routes/notification.routes';
+import serviceRoutes from '@modules/service/presentation/routes/service.routes';
+import documentRoutes from '@modules/customer/presentation/routes/document.routes';
+import searchRoutes from '@modules/dashboard/presentation/routes/search.routes';
+import importRoutes from '@modules/dashboard/presentation/routes/import.routes';
 
 const router = Router();
 
@@ -26,5 +30,9 @@ router.use('/finance', financeRoutes);
 router.use('/travel', travelRoutes);
 router.use('/audit-logs', auditRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/services', serviceRoutes);
+router.use('/documents', documentRoutes);
+router.use('/search', searchRoutes);
+router.use('/import', importRoutes);
 
 export default router;

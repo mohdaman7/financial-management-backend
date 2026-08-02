@@ -10,10 +10,47 @@ import {
   createTransactionSchema,
   updateTransactionSchema,
   reportRangeSchema,
+  createBankAccountSchema,
+  updateBankAccountSchema,
 } from '../validators/finance.validator';
 
 const router = Router();
 const controller = new FinanceController();
+
+// --- Bank Account Routes ---
+router.post(
+  '/bank-accounts',
+  authenticate,
+  requirePermission('manage_finance'),
+  authorizeCompany,
+  validate(createBankAccountSchema),
+  controller.createBankAccount,
+);
+
+router.get(
+  '/bank-accounts',
+  authenticate,
+  requirePermission('view_finance'),
+  authorizeCompany,
+  controller.listBankAccounts,
+);
+
+router.put(
+  '/bank-accounts/:id',
+  authenticate,
+  requirePermission('manage_finance'),
+  authorizeCompany,
+  validate(updateBankAccountSchema),
+  controller.updateBankAccount,
+);
+
+router.delete(
+  '/bank-accounts/:id',
+  authenticate,
+  requirePermission('manage_finance'),
+  authorizeCompany,
+  controller.deleteBankAccount,
+);
 
 /**
  * @openapi

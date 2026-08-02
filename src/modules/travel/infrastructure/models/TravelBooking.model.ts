@@ -40,7 +40,7 @@ export interface ITravelBooking extends Document {
 const TravelBookingSchema = new Schema<ITravelBooking>(
   {
     companyId: { type: Schema.Types.ObjectId, ref: 'Company', required: true },
-    customerId: { type: Schema.Types.ObjectId, ref: 'TravelCustomer', required: true },
+    customerId: { type: Schema.Types.ObjectId, ref: 'Customer', required: true },
     status: {
       type: String,
       enum: ['draft', 'quoted', 'confirmed', 'cancelled'],

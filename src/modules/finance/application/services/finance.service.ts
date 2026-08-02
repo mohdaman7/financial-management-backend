@@ -1,11 +1,41 @@
 import { Types } from 'mongoose';
 import { TransactionRepository } from '../../infrastructure/repositories/transaction.repository';
+import { BankAccountRepository } from '../../infrastructure/repositories/bankAccount.repository';
 import { ITransaction } from '../../infrastructure/models/Transaction.model';
+import { IBankAccount } from '../../infrastructure/models/BankAccount.model';
 import { AppError } from '@shared/errors/AppError';
 
 export class FinanceService {
-  constructor(private transactionRepository: TransactionRepository) {}
+  constructor(
+    private transactionRepository: TransactionRepository,
+    private bankAccountRepository: BankAccountRepository,
+  ) {}
 
+  // --- Bank Accounts ---
+  async createBankAccount(companyId: string, data: Partial<IBankAccount>): Promise<IBankAccount> {
+    return this.bankAccountRepository.create({
+      ...data,
+      companyId: new Types.ObjectId(companyId),
+    });
+  }
+
+  async getBankAccounts(companyId: string): Promise<IBankAccount[]> {
+    return this.bankAccountRepository.findByCompany(companyId);
+  }
+
+  async updateBankAccount(id: string, data: Partial<IBankAccount>): Promise<IBankAccount> {
+    const updated = await this.bankAccountRepository.update(id, data);
+    if (!updated) {
+      throw AppError.notFound('Bank account not found');
+    }
+    return updated;
+  }
+
+  async deleteBankAccount(id: string): Promise<void> {
+    await this.bankAccountRepository.delete(id);
+  }
+
+  // --- Transactions ---
   async createTransaction(
     companyId: string,
     data: {
@@ -18,13 +48,29 @@ export class FinanceService {
       status?: 'pending' | 'completed' | 'cancelled';
       reference?: string;
       description?: string;
+      bankAccountId?: string;
     },
   ): Promise<ITransaction> {
-    return this.transactionRepository.create({
+    const transaction = await this.transactionRepository.create({
       ...data,
       companyId: new Types.ObjectId(companyId),
       date: data.date || new Date(),
+      bankAccountId: data.bankAccountId ? new Types.ObjectId(data.bankAccountId) : undefined,
     });
+
+    if (transaction.status === 'completed' && transaction.bankAccountId) {
+      const bankAcc = await this.bankAccountRepository.findById(transaction.bankAccountId.toString());
+      if (bankAcc) {
+        if (transaction.type === 'income') {
+          bankAcc.currentBalance += transaction.amount;
+        } else {
+          bankAcc.currentBalance -= transaction.amount;
+        }
+        await bankAcc.save();
+      }
+    }
+
+    return transaction;
   }
 
   async getTransactionById(id: string): Promise<ITransaction> {
@@ -48,10 +94,37 @@ export class FinanceService {
       throw AppError.notFound('Transaction not found');
     }
 
+    // Reverse old transaction effect if it was completed
+    if (transaction.status === 'completed' && transaction.bankAccountId) {
+      const bankAcc = await this.bankAccountRepository.findById(transaction.bankAccountId.toString());
+      if (bankAcc) {
+        if (transaction.type === 'income') {
+          bankAcc.currentBalance -= transaction.amount;
+        } else {
+          bankAcc.currentBalance += transaction.amount;
+        }
+        await bankAcc.save();
+      }
+    }
+
     const updated = await this.transactionRepository.update(id, data);
     if (!updated) {
       throw AppError.notFound('Transaction not found');
     }
+
+    // Apply new transaction effect if completed
+    if (updated.status === 'completed' && updated.bankAccountId) {
+      const bankAcc = await this.bankAccountRepository.findById(updated.bankAccountId.toString());
+      if (bankAcc) {
+        if (updated.type === 'income') {
+          bankAcc.currentBalance += updated.amount;
+        } else {
+          bankAcc.currentBalance -= updated.amount;
+        }
+        await bankAcc.save();
+      }
+    }
+
     return updated;
   }
 
@@ -60,6 +133,20 @@ export class FinanceService {
     if (!transaction) {
       throw AppError.notFound('Transaction not found');
     }
+
+    // Reverse old transaction effect if it was completed
+    if (transaction.status === 'completed' && transaction.bankAccountId) {
+      const bankAcc = await this.bankAccountRepository.findById(transaction.bankAccountId.toString());
+      if (bankAcc) {
+        if (transaction.type === 'income') {
+          bankAcc.currentBalance -= transaction.amount;
+        } else {
+          bankAcc.currentBalance += transaction.amount;
+        }
+        await bankAcc.save();
+      }
+    }
+
     await this.transactionRepository.delete(id);
   }
 

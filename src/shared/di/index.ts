@@ -5,7 +5,9 @@ import { CompanyRepository } from '@modules/company/infrastructure/repositories/
 import { EmployeeRepository } from '@modules/employee/infrastructure/repositories/employee.repository';
 import { AttendanceRepository } from '@modules/attendance/infrastructure/repositories/attendance.repository';
 import { TransactionRepository } from '@modules/finance/infrastructure/repositories/transaction.repository';
+import { BankAccountRepository } from '@modules/finance/infrastructure/repositories/bankAccount.repository';
 import { TravelRepository } from '@modules/travel/infrastructure/repositories/travel.repository';
+import { ServiceRepository } from '@modules/service/infrastructure/repositories/service.repository';
 import { AuthService } from '@modules/auth/application/services/auth.service';
 import { UserService } from '@modules/auth/application/services/user.service';
 import { RoleService } from '@modules/auth/application/services/role.service';
@@ -15,6 +17,7 @@ import { AttendanceService } from '@modules/attendance/application/services/atte
 import { DashboardService } from '@modules/dashboard/application/services/dashboard.service';
 import { FinanceService } from '@modules/finance/application/services/finance.service';
 import { TravelService } from '@modules/travel/application/services/travel.service';
+import { ServiceService } from '@modules/service/application/services/service.service';
 import { AuditService } from '@modules/audit/application/services/audit.service';
 import { NotificationService } from '@modules/notification/application/services/notification.service';
 import { EmailService } from '@shared/services/email.service';
@@ -30,7 +33,9 @@ export function initializeContainer(): void {
   const employeeRepository = new EmployeeRepository();
   const attendanceRepository = new AttendanceRepository();
   const transactionRepository = new TransactionRepository();
+  const bankAccountRepository = new BankAccountRepository();
   const travelRepository = new TravelRepository();
+  const serviceRepository = new ServiceRepository();
 
   Container.register('UserRepository', userRepository);
   Container.register('RoleRepository', roleRepository);
@@ -38,7 +43,9 @@ export function initializeContainer(): void {
   Container.register('EmployeeRepository', employeeRepository);
   Container.register('AttendanceRepository', attendanceRepository);
   Container.register('TransactionRepository', transactionRepository);
+  Container.register('BankAccountRepository', bankAccountRepository);
   Container.register('TravelRepository', travelRepository);
+  Container.register('ServiceRepository', serviceRepository);
 
   // Services
   const authService = new AuthService(userRepository, companyRepository);
@@ -52,8 +59,9 @@ export function initializeContainer(): void {
     employeeRepository,
     transactionRepository,
   );
-  const financeService = new FinanceService(transactionRepository);
+  const financeService = new FinanceService(transactionRepository, bankAccountRepository);
   const travelService = new TravelService(travelRepository, transactionRepository);
+  const serviceService = new ServiceService(serviceRepository);
   const auditService = new AuditService();
   const notificationService = new NotificationService();
   const emailService = new EmailService();
@@ -67,6 +75,7 @@ export function initializeContainer(): void {
   Container.register('DashboardService', dashboardService);
   Container.register('FinanceService', financeService);
   Container.register('TravelService', travelService);
+  Container.register('ServiceService', serviceService);
   Container.register('AuditService', auditService);
   Container.register('NotificationService', notificationService);
   Container.register('EmailService', emailService);

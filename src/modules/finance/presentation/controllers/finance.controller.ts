@@ -7,6 +7,45 @@ export class FinanceController {
   private getFinanceService(): FinanceService {
     return Container.resolve<FinanceService>('FinanceService');
   }
+  createBankAccount = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const companyId = req.companyId as string;
+      const bankAccount = await this.getFinanceService().createBankAccount(companyId, req.body);
+      res.status(201).json(ResponseFormatter.success(bankAccount));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  listBankAccounts = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const companyId = req.companyId as string;
+      const bankAccounts = await this.getFinanceService().getBankAccounts(companyId);
+      res.status(200).json(ResponseFormatter.success(bankAccounts));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateBankAccount = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = req.params.id as string;
+      const bankAccount = await this.getFinanceService().updateBankAccount(id, req.body);
+      res.status(200).json(ResponseFormatter.success(bankAccount));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  deleteBankAccount = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = req.params.id as string;
+      await this.getFinanceService().deleteBankAccount(id);
+      res.status(200).json(ResponseFormatter.success({ message: 'Bank account deleted successfully' }));
+    } catch (error) {
+      next(error);
+    }
+  };
 
   create = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
