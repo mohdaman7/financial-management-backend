@@ -73,6 +73,24 @@ export class DashboardService {
       date: tx.date.toISOString(),
     }));
 
+    // 4. Get travel bookings and compute actual travel metrics
+    const travelBookings = await require('../../../travel/infrastructure/models/TravelBooking.model').TravelBookingModel.find({ companyId });
+    let visaPending = 0;
+    let ticketsIssued = 0;
+    let activeTours = 0;
+
+    for (const b of travelBookings) {
+      if (b.visaDetails && b.visaDetails.status === 'pending') {
+        visaPending++;
+      }
+      if (b.flightDetails && b.flightDetails.ticketNumber) {
+        ticketsIssued++;
+      }
+      if (b.status === 'confirmed') {
+        activeTours++;
+      }
+    }
+
     return {
       kpis: {
         revenue: parseFloat(revenue.toFixed(2)),
@@ -94,9 +112,9 @@ export class DashboardService {
         ],
       },
       travelAnalytics: {
-        visaPending: 12,
-        ticketsIssued: 45,
-        activeTours: 8,
+        visaPending,
+        ticketsIssued,
+        activeTours,
       },
     };
   }

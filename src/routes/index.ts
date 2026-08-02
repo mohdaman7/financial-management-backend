@@ -8,6 +8,7 @@ import employeeRoutes from '@modules/employee/presentation/routes/employee.route
 import attendanceRoutes from '@modules/attendance/presentation/routes/attendance.routes';
 import dashboardRoutes from '@modules/dashboard/presentation/routes/dashboard.routes';
 import financeRoutes from '@modules/finance/presentation/routes/finance.routes';
+import travelRoutes from '@modules/travel/presentation/routes/travel.routes';
 
 const router = Router();
 
@@ -20,5 +21,6 @@ router.use('/employees', employeeRoutes);
 router.use('/attendance', attendanceRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/finance', financeRoutes);
+router.use('/travel', travelRoutes);
 
 export default router;
