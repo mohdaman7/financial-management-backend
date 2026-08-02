@@ -17,7 +17,19 @@ export function validate(schema: ZodSchema, part: RequestPart = 'body') {
       return;
     }
 
-    req[part] = result.data;
+    if (part === 'query') {
+      for (const key in req.query) {
+        delete req.query[key];
+      }
+      Object.assign(req.query, result.data);
+    } else if (part === 'params') {
+      for (const key in req.params) {
+        delete req.params[key];
+      }
+      Object.assign(req.params, result.data);
+    } else {
+      req[part] = result.data;
+    }
     next();
   };
 }

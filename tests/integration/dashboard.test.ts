@@ -22,12 +22,24 @@ describe('Dashboard Module Integration Tests', () => {
 
     // 3. Seed Employee User
     const passwordHash = await bcrypt.hash('password123', 10);
-    await UserModel.create({
+    const user = await UserModel.create({
       email: 'employee@alpha.com',
       passwordHash,
       isSuperAdmin: false,
       companyId: company._id as Types.ObjectId,
       roleId: role._id as Types.ObjectId,
+    });
+
+    const empModel = require('../../src/modules/employee/infrastructure/models/Employee.model').EmployeeModel;
+    await empModel.create({
+      userId: user._id,
+      companyId: company._id,
+      firstName: 'John',
+      lastName: 'Doe',
+      department: 'Engineering',
+      position: 'Software Engineer',
+      hireDate: new Date(),
+      status: 'active',
     });
 
     // Login Employee
@@ -36,6 +48,35 @@ describe('Dashboard Module Integration Tests', () => {
       password: 'password123',
     });
     employeeToken = loginRes.body.data.accessToken;
+
+    // Seed transaction data
+    const txModel = require('../../src/modules/finance/infrastructure/models/Transaction.model').TransactionModel;
+    await txModel.create({
+      companyId: company._id,
+      type: 'income',
+      category: 'consulting',
+      amount: 3000,
+      paymentMethod: 'bank_transfer',
+      status: 'completed',
+    });
+
+    await txModel.create({
+      companyId: company._id,
+      type: 'expense',
+      category: 'supplies',
+      amount: 1000,
+      paymentMethod: 'cash',
+      status: 'completed',
+    });
+
+    await txModel.create({
+      companyId: company._id,
+      type: 'income',
+      category: 'consulting',
+      amount: 500,
+      paymentMethod: 'card',
+      status: 'pending',
+    });
   });
 
   describe('GET /api/v1/dashboard', () => {
@@ -47,9 +88,12 @@ describe('Dashboard Module Integration Tests', () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveProperty('kpis');
-      expect(response.body.data.kpis).toHaveProperty('totalEmployees');
-      expect(response.body.data).toHaveProperty('attendanceRate');
-      expect(response.body.data).toHaveProperty('recentTransactions');
+      expect(response.body.data.kpis.revenue).toBe(3000);
+      expect(response.body.data.kpis.expenses).toBe(1000);
+      expect(response.body.data.kpis.profit).toBe(2000);
+      expect(response.body.data.kpis.pendingPayments).toBe(500);
+      expect(response.body.data.kpis.totalEmployees).toBe(1);
+      expect(response.body.data.recentTransactions.length).toBe(3);
     });
   });
 });

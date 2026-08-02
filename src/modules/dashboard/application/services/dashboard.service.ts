@@ -1,10 +1,12 @@
 import { AttendanceRepository } from '../../../attendance/infrastructure/repositories/attendance.repository';
 import { EmployeeRepository } from '../../../employee/infrastructure/repositories/employee.repository';
+import { TransactionRepository } from '../../../finance/infrastructure/repositories/transaction.repository';
 
 export class DashboardService {
   constructor(
     private attendanceRepository: AttendanceRepository,
     private employeeRepository: EmployeeRepository,
+    private transactionRepository: TransactionRepository,
   ) {}
 
   async getCompanyMetrics(companyId: string): Promise<{
@@ -42,33 +44,46 @@ export class DashboardService {
 
     const attendanceRate = totalEmployees > 0 ? (activeAttendanceToday / totalEmployees) * 100 : 0;
 
-    // Return merged stats (includes placeholders for Finance & Travel features)
+    // 3. Get transactions and compute real KPIs
+    const txs = await this.transactionRepository.findByCompany(companyId, {});
+    let revenue = 0;
+    let expenses = 0;
+    let pendingPayments = 0;
+
+    for (const tx of txs) {
+      if (tx.status === 'completed') {
+        if (tx.type === 'income') {
+          revenue += tx.amount;
+        } else {
+          expenses += tx.amount;
+        }
+      } else if (tx.status === 'pending') {
+        pendingPayments += tx.amount;
+      }
+    }
+
+    const profit = revenue - expenses;
+    const recentTransactions = txs.slice(0, 5).map((tx) => ({
+      id: tx._id.toString(),
+      description:
+        tx.description ||
+        `${tx.type === 'income' ? 'Income' : 'Expense'} - ${tx.category}`,
+      amount: tx.amount,
+      type: tx.type,
+      date: tx.date.toISOString(),
+    }));
+
     return {
       kpis: {
-        revenue: 45200.0, // placeholder, to be populated in Phase 4
-        profit: 12400.0, // placeholder, to be populated in Phase 4
-        expenses: 32800.0, // placeholder, to be populated in Phase 4
-        pendingPayments: 8400.0, // placeholder, to be populated in Phase 4
+        revenue: parseFloat(revenue.toFixed(2)),
+        profit: parseFloat(profit.toFixed(2)),
+        expenses: parseFloat(expenses.toFixed(2)),
+        pendingPayments: parseFloat(pendingPayments.toFixed(2)),
         totalEmployees,
         activeAttendanceToday,
       },
       attendanceRate: parseFloat(attendanceRate.toFixed(2)),
-      recentTransactions: [
-        {
-          id: 'tx_placeholder_1',
-          description: 'Client Invoice Payment - Company A',
-          amount: 2500,
-          type: 'income',
-          date: new Date().toISOString(),
-        },
-        {
-          id: 'tx_placeholder_2',
-          description: 'Office rent & supplies',
-          amount: 1200,
-          type: 'expense',
-          date: new Date().toISOString(),
-        },
-      ],
+      recentTransactions,
       salesAnalytics: {
         labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
         datasets: [

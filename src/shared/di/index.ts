@@ -4,6 +4,7 @@ import { RoleRepository } from '@modules/auth/infrastructure/repositories/role.r
 import { CompanyRepository } from '@modules/company/infrastructure/repositories/company.repository';
 import { EmployeeRepository } from '@modules/employee/infrastructure/repositories/employee.repository';
 import { AttendanceRepository } from '@modules/attendance/infrastructure/repositories/attendance.repository';
+import { TransactionRepository } from '@modules/finance/infrastructure/repositories/transaction.repository';
 import { AuthService } from '@modules/auth/application/services/auth.service';
 import { UserService } from '@modules/auth/application/services/user.service';
 import { RoleService } from '@modules/auth/application/services/role.service';
@@ -11,6 +12,7 @@ import { CompanyService } from '@modules/company/application/services/company.se
 import { EmployeeService } from '@modules/employee/application/services/employee.service';
 import { AttendanceService } from '@modules/attendance/application/services/attendance.service';
 import { DashboardService } from '@modules/dashboard/application/services/dashboard.service';
+import { FinanceService } from '@modules/finance/application/services/finance.service';
 
 export function initializeContainer(): void {
   // Clear any existing registrations (helps during testing)
@@ -22,12 +24,14 @@ export function initializeContainer(): void {
   const companyRepository = new CompanyRepository();
   const employeeRepository = new EmployeeRepository();
   const attendanceRepository = new AttendanceRepository();
+  const transactionRepository = new TransactionRepository();
 
   Container.register('UserRepository', userRepository);
   Container.register('RoleRepository', roleRepository);
   Container.register('CompanyRepository', companyRepository);
   Container.register('EmployeeRepository', employeeRepository);
   Container.register('AttendanceRepository', attendanceRepository);
+  Container.register('TransactionRepository', transactionRepository);
 
   // Services
   const authService = new AuthService(userRepository, companyRepository);
@@ -36,7 +40,12 @@ export function initializeContainer(): void {
   const companyService = new CompanyService(companyRepository);
   const employeeService = new EmployeeService(employeeRepository, userRepository);
   const attendanceService = new AttendanceService(attendanceRepository);
-  const dashboardService = new DashboardService(attendanceRepository, employeeRepository);
+  const dashboardService = new DashboardService(
+    attendanceRepository,
+    employeeRepository,
+    transactionRepository,
+  );
+  const financeService = new FinanceService(transactionRepository);
 
   Container.register('AuthService', authService);
   Container.register('UserService', userService);
@@ -45,5 +54,6 @@ export function initializeContainer(): void {
   Container.register('EmployeeService', employeeService);
   Container.register('AttendanceService', attendanceService);
   Container.register('DashboardService', dashboardService);
+  Container.register('FinanceService', financeService);
 }
 export { Container };
