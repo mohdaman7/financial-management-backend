@@ -23,18 +23,21 @@ router.get('/', healthCheck);
 
 router.get('/seed', async (req, res) => {
   try {
-    const existingAdmin = await UserModel.findOne({ email: 'superadmin@erp.com' });
+    const email = (req.query.email as string) || 'superadmin@erp.com';
+    const password = (req.query.password as string) || 'password123';
+
+    const existingAdmin = await UserModel.findOne({ email });
     if (existingAdmin) {
-      return res.json({ message: 'Super admin already exists!' });
+      return res.json({ message: `Super admin with email ${email} already exists!` });
     }
-    const passwordHash = await bcrypt.hash('password123', 10);
+    const passwordHash = await bcrypt.hash(password, 10);
     await UserModel.create({
-      email: 'superadmin@erp.com',
+      email,
       passwordHash,
       isSuperAdmin: true,
       status: 'active'
     });
-    res.json({ message: 'Success! Super admin created.' });
+    res.json({ message: `Success! Super admin created with email: ${email}` });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
