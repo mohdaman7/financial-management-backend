@@ -40,6 +40,23 @@ router.post('/login', validate(loginSchema), controller.login);
 
 /**
  * @openapi
+ * /auth/me:
+ *   get:
+ *     tags:
+ *       - Authentication
+ *     summary: Get current authenticated user profile and permissions
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User profile and permissions
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/me', authenticate, controller.me);
+
+/**
+ * @openapi
  * /auth/refresh:
  *   post:
  *     tags:
@@ -51,9 +68,9 @@ router.post('/login', validate(loginSchema), controller.login);
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - refreshToken
  *             properties:
+ *               refresh_token:
+ *                 type: string
  *               refreshToken:
  *                 type: string
  *     responses:
@@ -71,22 +88,30 @@ router.post('/refresh', validate(refreshSchema), controller.refresh);
  *     tags:
  *       - Authentication
  *     summary: Log out user
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
- *       required: true
+ *       required: false
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - refreshToken
  *             properties:
+ *               refresh_token:
+ *                 type: string
  *               refreshToken:
  *                 type: string
  *     responses:
  *       200:
  *         description: Logged out
  */
-router.post('/logout', validate(refreshSchema), controller.logout);
+router.post('/logout', (req, res, next) => {
+  // Try authenticating optionally if bearer token is present
+  if (req.headers.authorization) {
+    return authenticate(req, res, () => controller.logout(req, res, next));
+  }
+  return controller.logout(req, res, next);
+});
 
 /**
  * @openapi

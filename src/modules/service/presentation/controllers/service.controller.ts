@@ -10,9 +10,15 @@ export class ServiceController {
 
   create = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const companyId = req.companyId as string;
-      const service = await this.getServiceService().createService(companyId, req.body);
-      res.status(201).json(ResponseFormatter.success(service));
+      const companyId = req.companyId as string | undefined;
+      const userId = req.user?.id;
+      const service = await this.getServiceService().createService(companyId, req.body, userId);
+      const data = service.toJSON ? service.toJSON() : service;
+      res.status(201).json({
+        success: true,
+        message: 'Service created successfully',
+        data,
+      });
     } catch (error) {
       next(error);
     }
@@ -22,7 +28,8 @@ export class ServiceController {
     try {
       const id = req.params.id as string;
       const service = await this.getServiceService().getServiceById(id);
-      res.status(200).json(ResponseFormatter.success(service));
+      const data = service.toJSON ? service.toJSON() : service;
+      res.status(200).json(ResponseFormatter.success(data));
     } catch (error) {
       next(error);
     }
@@ -30,9 +37,30 @@ export class ServiceController {
 
   list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const companyId = req.companyId as string;
-      const services = await this.getServiceService().getServicesByCompany(companyId);
-      res.status(200).json(ResponseFormatter.success(services));
+      const { category, status, priority, search, page, limit } = req.query;
+      const companyId = req.companyId as string | undefined;
+
+      const result = await this.getServiceService().listServices({
+        category: category ? String(category) : undefined,
+        status: status ? String(status) : undefined,
+        priority: priority ? String(priority) : undefined,
+        search: search ? String(search) : undefined,
+        companyId,
+        page: page ? Number(page) : 1,
+        limit: limit ? Number(limit) : 20,
+      });
+
+      const data = result.services.map((s) => (s.toJSON ? s.toJSON() : s));
+
+      res.status(200).json({
+        success: true,
+        data,
+        meta: {
+          total: result.total,
+          page: result.page,
+          limit: result.limit,
+        },
+      });
     } catch (error) {
       next(error);
     }
@@ -41,8 +69,14 @@ export class ServiceController {
   update = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const id = req.params.id as string;
-      const service = await this.getServiceService().updateService(id, req.body);
-      res.status(200).json(ResponseFormatter.success(service));
+      const userId = req.user?.id;
+      const service = await this.getServiceService().updateService(id, req.body, userId);
+      const data = service.toJSON ? service.toJSON() : service;
+      res.status(200).json({
+        success: true,
+        message: 'Service updated successfully',
+        data,
+      });
     } catch (error) {
       next(error);
     }
@@ -52,9 +86,13 @@ export class ServiceController {
     try {
       const id = req.params.id as string;
       await this.getServiceService().deleteService(id);
-      res.status(200).json(ResponseFormatter.success({ message: 'Service deleted successfully' }));
+      res.status(200).json({
+        success: true,
+        message: 'Service deleted successfully',
+      });
     } catch (error) {
       next(error);
     }
   };
 }
+

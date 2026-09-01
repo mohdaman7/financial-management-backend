@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { ServiceController } from '../controllers/service.controller';
 import { validate } from '@shared/middleware/validate.middleware';
 import {
@@ -10,6 +10,17 @@ import { createServiceSchema, updateServiceSchema } from '../validators/service.
 
 const router = Router();
 const controller = new ServiceController();
+
+// Optional authentication helper for GET endpoints
+const optionalAuth = (req: Request, res: Response, next: NextFunction) => {
+  if (req.headers.authorization) {
+    return authenticate(req, res, (err) => {
+      if (err) return next(err);
+      return authorizeCompany(req, res, next);
+    });
+  }
+  next();
+};
 
 /**
  * @openapi
@@ -52,7 +63,7 @@ router.post(
  *       200:
  *         description: List of services
  */
-router.get('/', authenticate, requirePermission('view_services'), authorizeCompany, controller.list);
+router.get('/', optionalAuth, controller.list);
 
 /**
  * @openapi
@@ -73,13 +84,7 @@ router.get('/', authenticate, requirePermission('view_services'), authorizeCompa
  *       200:
  *         description: Service object
  */
-router.get(
-  '/:id',
-  authenticate,
-  requirePermission('view_services'),
-  authorizeCompany,
-  controller.getById,
-);
+router.get('/:id', optionalAuth, controller.getById);
 
 /**
  * @openapi
@@ -143,3 +148,4 @@ router.delete(
 );
 
 export default router;
+

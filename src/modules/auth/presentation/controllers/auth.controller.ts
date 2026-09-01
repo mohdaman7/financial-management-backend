@@ -10,9 +10,23 @@ export class AuthController {
 
   login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { email, password } = req.body;
-      const result = await this.getAuthService().login(email, password);
-      res.status(200).json(ResponseFormatter.success(result));
+      const { email, password, role } = req.body;
+      const result = await this.getAuthService().login(email, password, role);
+      res.status(200).json({
+        success: true,
+        message: 'Authentication successful',
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  me = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user!.id;
+      const profile = await this.getAuthService().getMe(userId);
+      res.status(200).json(ResponseFormatter.success(profile));
     } catch (error) {
       next(error);
     }
@@ -20,8 +34,8 @@ export class AuthController {
 
   refresh = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { refreshToken } = req.body;
-      const result = await this.getAuthService().refresh(refreshToken);
+      const token = req.body.refresh_token || req.body.refreshToken;
+      const result = await this.getAuthService().refresh(token);
       res.status(200).json(ResponseFormatter.success(result));
     } catch (error) {
       next(error);
@@ -30,9 +44,13 @@ export class AuthController {
 
   logout = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { refreshToken } = req.body;
-      await this.getAuthService().logout(refreshToken);
-      res.status(200).json(ResponseFormatter.success({ message: 'Logged out successfully' }));
+      const token = req.body?.refresh_token || req.body?.refreshToken;
+      const userId = req.user?.id;
+      await this.getAuthService().logout(token, userId);
+      res.status(200).json({
+        success: true,
+        message: 'User logged out successfully',
+      });
     } catch (error) {
       next(error);
     }
@@ -49,3 +67,4 @@ export class AuthController {
     }
   };
 }
+

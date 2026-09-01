@@ -23,9 +23,16 @@ export function createApp(): Application {
 
   app.use(requestIdMiddleware);
   app.use(helmet());
+  const allowedOrigins = config.CORS_ORIGIN.split(',').map((o) => o.trim());
   app.use(
     cors({
-      origin: config.CORS_ORIGIN.split(',').map((o) => o.trim()),
+      origin: (origin, callback) => {
+        if (!origin || config.NODE_ENV !== 'production' || allowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
       credentials: true,
     }),
   );
@@ -37,7 +44,7 @@ export function createApp(): Application {
   app.use(
     rateLimit({
       windowMs: 15 * 60 * 1000,
-      max: 100,
+      max: config.NODE_ENV === 'test' ? 1000 : 500,
       standardHeaders: true,
       legacyHeaders: false,
       message: {
@@ -62,6 +69,7 @@ export function createApp(): Application {
   app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
   app.use(auditLogger());
   app.use('/api/v1', routes);
+  app.use('/v1', routes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

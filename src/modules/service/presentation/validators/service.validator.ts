@@ -1,47 +1,102 @@
 import { z } from 'zod';
 
-export const createServiceSchema = z.object({
-  serviceName: z.string().min(2, 'Service name is required'),
-  category: z.string().min(2, 'Category is required'),
-  description: z.string().min(5, 'Description must be at least 5 characters'),
-  price: z.number().nonnegative('Price cannot be negative'),
-  processingTime: z.string().min(1, 'Processing time is required'),
+const faqItemSchema = z.object({
+  q: z.string().optional(),
+  a: z.string().optional(),
+  question: z.string().optional(),
+  answer: z.string().optional(),
+});
+
+const stepItemSchema = z.object({
+  step: z.string(),
+  description: z.string(),
+});
+
+const linkItemSchema = z.object({
+  name: z.string().optional(),
+  label: z.string().optional(),
+  url: z.string(),
+});
+
+export const createServiceSchema = z
+  .object({
+    name: z.string().min(2, 'Service name is required').optional(),
+    serviceName: z.string().min(2, 'Service name is required').optional(),
+    category: z.string().min(2, 'Category is required'),
+    sub_category: z.string().optional(),
+    subCategory: z.string().optional(),
+    icon: z.string().optional(),
+    description: z.string().optional(),
+    government_department: z.string().optional(),
+    governmentDepartment: z.string().optional(),
+    country: z.string().optional(),
+    required_documents: z.array(z.string()).optional(),
+    requiredDocuments: z.array(z.string()).optional(),
+    eligibility: z.string().optional(),
+    processing_time: z.string().optional(),
+    processingTime: z.string().optional(),
+    government_fee: z.number().nonnegative().optional(),
+    governmentFees: z.number().nonnegative().optional(),
+    company_service_charge: z.number().nonnegative().optional(),
+    companyServiceCharge: z.number().nonnegative().optional(),
+    total_cost: z.number().nonnegative().optional(),
+    price: z.number().nonnegative().optional(),
+    currency: z.string().optional(),
+    priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
+    status: z.enum(['active', 'inactive', 'coming_soon']).optional(),
+    approval_required: z.boolean().optional(),
+    tags: z.array(z.string()).optional(),
+    faqs: z.array(faqItemSchema).optional(),
+    internal_notes: z.string().optional(),
+    customer_notes: z.string().optional(),
+    required_steps: z.array(stepItemSchema).optional(),
+    stepsToApply: z.array(z.string()).optional(),
+    documents_checklist: z.array(z.string()).optional(),
+    downloadable_forms: z.array(linkItemSchema).optional(),
+    official_links: z.array(linkItemSchema).optional(),
+    termsAndConditions: z.string().optional(),
+    importantNotes: z.string().optional(),
+  })
+  .refine((data) => !!(data.name || data.serviceName), {
+    message: 'Service name is required',
+  });
+
+export const updateServiceSchema = z.object({
+  name: z.string().min(2).optional(),
+  serviceName: z.string().min(2).optional(),
+  category: z.string().min(2).optional(),
+  sub_category: z.string().optional(),
+  subCategory: z.string().optional(),
+  icon: z.string().optional(),
+  description: z.string().optional(),
+  government_department: z.string().optional(),
+  governmentDepartment: z.string().optional(),
+  country: z.string().optional(),
+  required_documents: z.array(z.string()).optional(),
   requiredDocuments: z.array(z.string()).optional(),
-  termsAndConditions: z.string().optional(),
-  status: z.enum(['active', 'inactive']).optional(),
+  eligibility: z.string().optional(),
+  processing_time: z.string().optional(),
+  processingTime: z.string().optional(),
+  government_fee: z.number().nonnegative().optional(),
   governmentFees: z.number().nonnegative().optional(),
+  company_service_charge: z.number().nonnegative().optional(),
   companyServiceCharge: z.number().nonnegative().optional(),
+  total_cost: z.number().nonnegative().optional(),
+  price: z.number().nonnegative().optional(),
+  currency: z.string().optional(),
+  priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
+  status: z.enum(['active', 'inactive', 'coming_soon']).optional(),
+  approval_required: z.boolean().optional(),
+  tags: z.array(z.string()).optional(),
+  faqs: z.array(faqItemSchema).optional(),
+  internal_notes: z.string().optional(),
+  customer_notes: z.string().optional(),
+  required_steps: z.array(stepItemSchema).optional(),
   stepsToApply: z.array(z.string()).optional(),
-  faqs: z
-    .array(
-      z.object({
-        question: z.string().min(2),
-        answer: z.string().min(2),
-      }),
-    )
-    .optional(),
+  documents_checklist: z.array(z.string()).optional(),
+  downloadable_forms: z.array(linkItemSchema).optional(),
+  official_links: z.array(linkItemSchema).optional(),
+  termsAndConditions: z.string().optional(),
   importantNotes: z.string().optional(),
 });
 
-export const updateServiceSchema = z.object({
-  serviceName: z.string().min(2).optional(),
-  category: z.string().min(2).optional(),
-  description: z.string().min(5).optional(),
-  price: z.number().nonnegative().optional(),
-  processingTime: z.string().min(1).optional(),
-  requiredDocuments: z.array(z.string()).optional(),
-  termsAndConditions: z.string().optional(),
-  status: z.enum(['active', 'inactive']).optional(),
-  governmentFees: z.number().nonnegative().optional(),
-  companyServiceCharge: z.number().nonnegative().optional(),
-  stepsToApply: z.array(z.string()).optional(),
-  faqs: z
-    .array(
-      z.object({
-        question: z.string().min(2),
-        answer: z.string().min(2),
-      }),
-    )
-    .optional(),
-  importantNotes: z.string().optional(),
-});
