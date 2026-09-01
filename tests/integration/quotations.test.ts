@@ -10,7 +10,7 @@ describe('Skyfall Financial & Travels ERP — Generate Quotation API v2.4.0 Inte
   let superAdminToken: string;
   let adminToken: string;
   let employeeToken: string;
-  let companyId: string;
+  let _companyId: string;
   let defaultQuotationId: string;
   let defaultQuoteRef: string;
   let defaultCustomId: string;
@@ -21,7 +21,7 @@ describe('Skyfall Financial & Travels ERP — Generate Quotation API v2.4.0 Inte
       name: 'Skyfall Travels & Tourism LLC',
       code: 'SKYFALL',
     });
-    companyId = company._id.toString();
+    _companyId = company._id.toString();
 
     const passwordHash = await bcrypt.hash('password123', 10);
 

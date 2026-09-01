@@ -9,7 +9,7 @@ import { Types } from 'mongoose';
 
 describe('Skyfall International Travels — Receipts & Payment Inflow API', () => {
   let authToken: string;
-  let companyId: string;
+  let _companyId: string;
   let sampleReceiptId: string;
   let sampleInvoiceId: string;
   let sampleCustomerId: string;
@@ -19,7 +19,7 @@ describe('Skyfall International Travels — Receipts & Payment Inflow API', () =
       name: 'Skyfall International Travels',
       code: `SKY-${Date.now()}`,
     });
-    companyId = company._id.toString();
+    _companyId = company._id.toString();
 
     const passwordHash = await bcrypt.hash('SecurePassword123!', 10);
     await UserModel.create({

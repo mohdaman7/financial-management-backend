@@ -26,18 +26,7 @@ const ONES = [
   'NINETEEN',
 ];
 
-const TENS = [
-  '',
-  '',
-  'TWENTY',
-  'THIRTY',
-  'FORTY',
-  'FIFTY',
-  'SIXTY',
-  'SEVENTY',
-  'EIGHTY',
-  'NINETY',
-];
+const TENS = ['', '', 'TWENTY', 'THIRTY', 'FORTY', 'FIFTY', 'SIXTY', 'SEVENTY', 'EIGHTY', 'NINETY'];
 
 function convertBelowThousand(n: number): string {
   if (n === 0) return '';

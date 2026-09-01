@@ -1,0 +1,29 @@
+name: Security & Vulnerability Scan
+
+on:
+  schedule:
+    # Run every Sunday at midnight UTC
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+
+jobs:
+  audit:
+    name: Dependency Audit & Vulnerability Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Run npm Audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+      - name: Check Outdated Packages
+        run: npm outdated || true

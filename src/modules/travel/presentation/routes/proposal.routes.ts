@@ -116,13 +116,7 @@ router.put(
  *     security:
  *       - bearerAuth: []
  */
-router.delete(
-  '/:id',
-  authenticate,
-  authorizeCompany,
-  requireSuperAdmin,
-  controller.deleteProposal,
-);
+router.delete('/:id', authenticate, authorizeCompany, requireSuperAdmin, controller.deleteProposal);
 
 /**
  * @openapi
@@ -158,11 +152,6 @@ router.get('/:id/pdf', authenticate, authorizeCompany, controller.downloadPdf);
  * Additional proposal workflow endpoints
  */
 router.post('/:id/send-email', authenticate, authorizeCompany, controller.sendEmail);
-router.post(
-  '/:id/convert-to-invoice',
-  authenticate,
-  authorizeCompany,
-  controller.convertToInvoice,
-);
+router.post('/:id/convert-to-invoice', authenticate, authorizeCompany, controller.convertToInvoice);
 
 export default router;

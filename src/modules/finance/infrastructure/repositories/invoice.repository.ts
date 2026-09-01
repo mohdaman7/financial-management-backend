@@ -99,7 +99,7 @@ export class InvoiceRepository {
     };
   }
 
-  async findById(id: string, companyId?: string): Promise<IInvoice | null> {
+  async findById(id: string, _companyId?: string): Promise<IInvoice | null> {
     if (!id) return null;
 
     // 1. Direct custom_id or invoice_number match

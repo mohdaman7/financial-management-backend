@@ -203,7 +203,7 @@ export class CustomerService {
       try {
         const bucket = getGridFSBucket();
         await bucket.delete(new Types.ObjectId(docToDelete.fileId.toString()));
-      } catch (err) {
+      } catch {
         // Silently continue if already deleted
       }
     }

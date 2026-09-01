@@ -52,15 +52,7 @@ export interface ITravelProposal extends Document {
   createdBy?: string;
   created_by?: string;
   notes?: string;
-  status:
-    | 'draft'
-    | 'sent'
-    | 'accepted'
-    | 'declined'
-    | 'expired'
-    | 'approved'
-    | 'rejected'
-    | string;
+  status: 'draft' | 'sent' | 'accepted' | 'declined' | 'expired' | 'approved' | 'rejected' | string;
   invoiceId?: Types.ObjectId | string | null;
   createdAt: Date;
   updatedAt: Date;

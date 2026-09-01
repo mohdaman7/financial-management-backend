@@ -10,7 +10,7 @@ describe('Skyfall Financial & Travels ERP — Generate Offer Letter API v2.4.0 I
   let superAdminToken: string;
   let adminToken: string;
   let employeeToken: string;
-  let companyId: string;
+  let _companyId: string;
   let defaultOfferLetterId: string;
   let defaultCustomId: string;
 
@@ -20,7 +20,7 @@ describe('Skyfall Financial & Travels ERP — Generate Offer Letter API v2.4.0 I
       name: 'Skyfall Travels & Tourism LLC',
       code: 'SKYFALL',
     });
-    companyId = company._id.toString();
+    _companyId = company._id.toString();
 
     const passwordHash = await bcrypt.hash('password123', 10);
 

@@ -3,7 +3,6 @@ import { CompanyModel } from '../../src/modules/company/infrastructure/models/Co
 import { RoleModel } from '../../src/modules/auth/infrastructure/models/Role.model';
 import { UserModel } from '../../src/modules/auth/infrastructure/models/User.model';
 import { BankAccountModel } from '../../src/modules/finance/infrastructure/models/BankAccount.model';
-import { ServiceModel } from '../../src/modules/service/infrastructure/models/Service.model';
 import { CustomerModel } from '../../src/modules/customer/infrastructure/models/Customer.model';
 import bcrypt from 'bcrypt';
 
@@ -24,7 +23,7 @@ describe('Phase 7: Extended Operations Integration Tests', () => {
     });
 
     const hashedPassword = await bcrypt.hash('adminpassword', 10);
-    const user = await UserModel.create({
+    await UserModel.create({
       email: 'admin@apex.com',
       passwordHash: hashedPassword,
       roleId: role._id,

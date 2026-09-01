@@ -11,14 +11,14 @@ import bcrypt from 'bcrypt';
 
 describe('Skyfall International Travels — Complete Reports API (Sales & Finance)', () => {
   let authToken: string;
-  let companyId: string;
+  let _companyId: string;
 
   beforeEach(async () => {
     const company = await CompanyModel.create({
       name: 'Skyfall International Travels',
       code: `SKY-${Date.now()}`,
     });
-    companyId = company._id.toString();
+    _companyId = company._id.toString();
 
     const passwordHash = await bcrypt.hash('SecurePassword123!', 10);
     await UserModel.create({

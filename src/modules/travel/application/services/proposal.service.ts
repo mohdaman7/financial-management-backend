@@ -52,7 +52,8 @@ export interface CreateProposalDTO {
   details?: string;
   createdBy?: string;
   created_by?: string;
-  status?: 'draft' | 'sent' | 'accepted' | 'declined' | 'expired' | 'approved' | 'rejected' | string;
+  status?:
+    'draft' | 'sent' | 'accepted' | 'declined' | 'expired' | 'approved' | 'rejected' | string;
 }
 
 export class ProposalService {
@@ -182,7 +183,13 @@ export class ProposalService {
     pagination: { page: number; limit: number } = { page: 1, limit: 20 },
   ): Promise<{
     proposals: any[];
-    meta: { total: number; total_records: number; page: number; limit: number; total_pages: number };
+    meta: {
+      total: number;
+      total_records: number;
+      page: number;
+      limit: number;
+      total_pages: number;
+    };
   }> {
     const query: any = {};
 
@@ -273,12 +280,18 @@ export class ProposalService {
 
     const rawItems = data.items || [];
     if (!Array.isArray(rawItems) || rawItems.length === 0) {
-      throw AppError.badRequest('Quotation request must contain at least one item.', 'EMPTY_LINE_ITEMS');
+      throw AppError.badRequest(
+        'Quotation request must contain at least one item.',
+        'EMPTY_LINE_ITEMS',
+      );
     }
 
     for (const item of rawItems) {
       if (item.qty === undefined || item.qty <= 0) {
-        throw AppError.unprocessable('Quantity must be greater than zero.', 'INVALID_ITEM_QUANTITY');
+        throw AppError.unprocessable(
+          'Quantity must be greater than zero.',
+          'INVALID_ITEM_QUANTITY',
+        );
       }
       if (item.rate === undefined || item.rate < 0) {
         throw AppError.unprocessable('Rate must be non-negative.', 'INVALID_ITEM_QUANTITY');
@@ -301,7 +314,8 @@ export class ProposalService {
 
     const year = new Date().getFullYear();
     const count = await TravelProposalModel.countDocuments();
-    const quoteRef = data.quote_ref || data.quoteRef || `SQ-${year}-${String(count + 1).padStart(4, '0')}`;
+    const quoteRef =
+      data.quote_ref || data.quoteRef || `SQ-${year}-${String(count + 1).padStart(4, '0')}`;
     const customId = `qt-${Math.floor(1000 + Math.random() * 9000)}-${Math.random().toString(36).substring(2, 6)}`;
 
     const proposal = new TravelProposalModel({
@@ -313,7 +327,8 @@ export class ProposalService {
           ? new Types.ObjectId(data.bookingId)
           : undefined,
       customerId:
-        (data.customer_id || data.customerId) && Types.ObjectId.isValid(data.customer_id || (data.customerId as string))
+        (data.customer_id || data.customerId) &&
+        Types.ObjectId.isValid(data.customer_id || (data.customerId as string))
           ? new Types.ObjectId(data.customer_id || (data.customerId as string))
           : undefined,
       quoteRef,
@@ -350,12 +365,18 @@ export class ProposalService {
 
     if (data.items && Array.isArray(data.items)) {
       if (data.items.length === 0) {
-        throw AppError.badRequest('Quotation request must contain at least one item.', 'EMPTY_LINE_ITEMS');
+        throw AppError.badRequest(
+          'Quotation request must contain at least one item.',
+          'EMPTY_LINE_ITEMS',
+        );
       }
 
       for (const item of data.items) {
         if (item.qty === undefined || item.qty <= 0) {
-          throw AppError.unprocessable('Quantity must be greater than zero.', 'INVALID_ITEM_QUANTITY');
+          throw AppError.unprocessable(
+            'Quantity must be greater than zero.',
+            'INVALID_ITEM_QUANTITY',
+          );
         }
         if (item.rate === undefined || item.rate < 0) {
           throw AppError.unprocessable('Rate must be non-negative.', 'INVALID_ITEM_QUANTITY');
@@ -377,14 +398,14 @@ export class ProposalService {
         ? Number(data.discount_amount)
         : data.discountAmount !== undefined
           ? Number(data.discountAmount)
-          : proposal.discount_amount ?? 0;
+          : (proposal.discount_amount ?? 0);
 
     const paidAmount =
       data.paid_amount !== undefined
         ? Number(data.paid_amount)
         : data.paidAmount !== undefined
           ? Number(data.paidAmount)
-          : proposal.paid_amount ?? 0;
+          : (proposal.paid_amount ?? 0);
 
     const financials = this.computeFinancials(proposal.items, discountAmount, paidAmount);
 

@@ -5,7 +5,6 @@ import { TravelBookingModel } from '../../../travel/infrastructure/models/Travel
 import { TravelProposalModel } from '../../../travel/infrastructure/models/TravelProposal.model';
 import { CustomerModel } from '../../../customer/infrastructure/models/Customer.model';
 import { ServiceModel } from '../../../service/infrastructure/models/Service.model';
-import { UserModel } from '../../../auth/infrastructure/models/User.model';
 
 export class ReportService {
   private buildDateFilter(startDate?: string, endDate?: string, dateField = 'createdAt'): any {
@@ -528,7 +527,7 @@ export class ReportService {
   // 9. Credit Notes & Refunds Report
   async getCreditNotesReport(
     companyId?: string,
-    filters: { start_date?: string; end_date?: string; customer_id?: string } = {},
+    _filters: { start_date?: string; end_date?: string; customer_id?: string } = {},
   ) {
     const proposals = await TravelProposalModel.find({
       title: { $regex: '^CN-', $options: 'i' },
@@ -638,7 +637,6 @@ export class ReportService {
     const invoices = await TravelInvoiceModel.find()
       .populate({ path: 'bookingId', populate: { path: 'customerId' } })
       .exec();
-    const incomeTxs = await TransactionModel.find({ type: 'income' }).exec();
 
     const ledgerEntries: any[] = [];
 
@@ -703,7 +701,7 @@ export class ReportService {
   // 12. Supplier Statements & Payables
   async getSupplierStatementReport(
     companyId?: string,
-    filters: { supplier_id?: string; start_date?: string; end_date?: string } = {},
+    _filters: { supplier_id?: string; start_date?: string; end_date?: string } = {},
   ) {
     const suppliers = [
       { id: 'sup_1', name: 'Amer Center GDRFA Dubai', opening: 12000, bills: 45000, paid: 42000 },

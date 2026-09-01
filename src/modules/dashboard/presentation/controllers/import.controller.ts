@@ -69,7 +69,7 @@ export class ImportController {
             { upsert: true, new: true },
           );
           insertedCount++;
-        } catch (err) {
+        } catch {
           // Skip individual errors (e.g. duplicate keys)
         }
       }

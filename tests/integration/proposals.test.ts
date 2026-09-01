@@ -6,7 +6,7 @@ import bcrypt from 'bcrypt';
 
 describe('Skyfall International Travels — Proposals & Quotations API', () => {
   let authToken: string;
-  let companyId: string;
+  let _companyId: string;
   let sampleProposalId: string;
 
   beforeEach(async () => {
@@ -14,7 +14,7 @@ describe('Skyfall International Travels — Proposals & Quotations API', () => {
       name: 'Skyfall International Travels',
       code: `SKY-${Date.now()}`,
     });
-    companyId = company._id.toString();
+    _companyId = company._id.toString();
 
     const passwordHash = await bcrypt.hash('SecurePassword123!', 10);
     await UserModel.create({
