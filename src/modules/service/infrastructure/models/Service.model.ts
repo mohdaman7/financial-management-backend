@@ -155,7 +155,11 @@ const ServiceSchema = new Schema<IService>(
 );
 
 ServiceSchema.index({ companyId: 1, name: 1 });
-ServiceSchema.index({ name: 'text', category: 'text', description: 'text', government_department: 'text' });
+ServiceSchema.index({
+  name: 'text',
+  category: 'text',
+  description: 'text',
+  government_department: 'text',
+});
 
 export const ServiceModel = model<IService>('Service', ServiceSchema);
-

@@ -39,7 +39,11 @@ export class ReportController {
     }
   };
 
-  getMonthlySalesReport = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  getMonthlySalesReport = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const companyId = req.companyId as string | undefined;
       const year = req.query.year ? parseInt(req.query.year as string, 10) : 2026;
@@ -50,30 +54,51 @@ export class ReportController {
     }
   };
 
-  getSalesByServiceReport = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  getSalesByServiceReport = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const companyId = req.companyId as string | undefined;
-      const data = await this.getReportService().getSalesByServiceReport(companyId, req.query as any);
+      const data = await this.getReportService().getSalesByServiceReport(
+        companyId,
+        req.query as any,
+      );
       res.status(200).json(ResponseFormatter.success(data));
     } catch (error) {
       next(error);
     }
   };
 
-  getSalesByCategoryReport = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  getSalesByCategoryReport = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const companyId = req.companyId as string | undefined;
-      const data = await this.getReportService().getSalesByCategoryReport(companyId, req.query as any);
+      const data = await this.getReportService().getSalesByCategoryReport(
+        companyId,
+        req.query as any,
+      );
       res.status(200).json(ResponseFormatter.success(data));
     } catch (error) {
       next(error);
     }
   };
 
-  getSalesByCustomerReport = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  getSalesByCustomerReport = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const companyId = req.companyId as string | undefined;
-      const data = await this.getReportService().getSalesByCustomerReport(companyId, req.query as any);
+      const data = await this.getReportService().getSalesByCustomerReport(
+        companyId,
+        req.query as any,
+      );
       res.status(200).json(ResponseFormatter.success(data));
     } catch (error) {
       next(error);
@@ -101,30 +126,51 @@ export class ReportController {
   };
 
   // --- FINANCE REPORTS ---
-  getOutstandingInvoicesReport = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  getOutstandingInvoicesReport = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const companyId = req.companyId as string | undefined;
-      const data = await this.getReportService().getOutstandingInvoicesReport(companyId, req.query as any);
+      const data = await this.getReportService().getOutstandingInvoicesReport(
+        companyId,
+        req.query as any,
+      );
       res.status(200).json(ResponseFormatter.success(data));
     } catch (error) {
       next(error);
     }
   };
 
-  getCustomerStatementReport = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  getCustomerStatementReport = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const companyId = req.companyId as string | undefined;
-      const data = await this.getReportService().getCustomerStatementReport(companyId, req.query as any);
+      const data = await this.getReportService().getCustomerStatementReport(
+        companyId,
+        req.query as any,
+      );
       res.status(200).json(ResponseFormatter.success(data));
     } catch (error) {
       next(error);
     }
   };
 
-  getSupplierStatementReport = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  getSupplierStatementReport = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const companyId = req.companyId as string | undefined;
-      const data = await this.getReportService().getSupplierStatementReport(companyId, req.query as any);
+      const data = await this.getReportService().getSupplierStatementReport(
+        companyId,
+        req.query as any,
+      );
       res.status(200).json(ResponseFormatter.success(data));
     } catch (error) {
       next(error);
@@ -151,10 +197,17 @@ export class ReportController {
     }
   };
 
-  getProfitAndLossReport = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  getProfitAndLossReport = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const companyId = req.companyId as string | undefined;
-      const data = await this.getReportService().getProfitAndLossReport(companyId, req.query as any);
+      const data = await this.getReportService().getProfitAndLossReport(
+        companyId,
+        req.query as any,
+      );
       res.status(200).json(ResponseFormatter.success(data));
     } catch (error) {
       next(error);
@@ -171,20 +224,34 @@ export class ReportController {
     }
   };
 
-  getProCommissionReport = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  getProCommissionReport = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const companyId = req.companyId as string | undefined;
-      const data = await this.getReportService().getProCommissionReport(companyId, req.query as any);
+      const data = await this.getReportService().getProCommissionReport(
+        companyId,
+        req.query as any,
+      );
       res.status(200).json(ResponseFormatter.success(data));
     } catch (error) {
       next(error);
     }
   };
 
-  getEmployeePerformanceReport = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  getEmployeePerformanceReport = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const companyId = req.companyId as string | undefined;
-      const data = await this.getReportService().getEmployeePerformanceReport(companyId, req.query as any);
+      const data = await this.getReportService().getEmployeePerformanceReport(
+        companyId,
+        req.query as any,
+      );
       res.status(200).json(ResponseFormatter.success(data));
     } catch (error) {
       next(error);

@@ -83,7 +83,7 @@ ${proposal.items
   .map(
     (item) => `
 0 -16 Td
-(${item.description.padEnd(45, ' ').slice(0, 45)}  ${item.qty.toString().padStart(3, ' ')}    ${item.rate.toFixed(2).padStart(10, ' ')}        ${item.tax}%       ${((item.rate * item.qty * (1 + item.tax / 100))).toFixed(2).padStart(12, ' ')}) Tj`,
+(${item.description.padEnd(45, ' ').slice(0, 45)}  ${item.qty.toString().padStart(3, ' ')}    ${item.rate.toFixed(2).padStart(10, ' ')}        ${item.tax}%       ${(item.rate * item.qty * (1 + item.tax / 100)).toFixed(2).padStart(12, ' ')}) Tj`,
   )
   .join('')}
 
@@ -233,6 +233,211 @@ trailer
 << /Size 8 /Root 2 0 R /Info 1 0 R >>
 startxref
 1750
+%%EOF
+    `.trim();
+
+    return Buffer.from(textContent, 'utf-8');
+  }
+
+  static generateInvoicePdf(invoice: {
+    invoice_number: string;
+    file_no?: string;
+    invoice_type?: 'standard' | 'statement';
+    customer_name: string;
+    care_of?: string;
+    contact_name?: string;
+    customer_phone?: string;
+    customer_email?: string;
+    passenger_name?: string;
+    lead_by: string;
+    category?: string;
+    issue_date: string;
+    due_date: string;
+    payment_terms: string;
+    status: string;
+    currency: string;
+    subtotal: number;
+    vat: number;
+    additions?: number;
+    deductions?: number;
+    grand_total: number;
+    paid_amount: number;
+    balance_amount: number;
+    remarks?: string;
+    items?: Array<{
+      description: string;
+      nbNo?: string;
+      name?: string;
+      transNo?: string;
+      qty: number;
+      rate: number;
+      tax?: number;
+      netAmount?: number;
+      govCost?: number;
+      pro?: string;
+      proComm?: number;
+    }>;
+    statement_entries?: Array<{
+      date: string;
+      details: string;
+      debit: number;
+      credit: number;
+    }>;
+    opening_balance?: number;
+    options?: {
+      print_header_logo?: boolean;
+      include_bank_details?: boolean;
+      watermark?: boolean;
+    };
+  }): Buffer {
+    const isStatement = invoice.invoice_type === 'statement';
+    const title = isStatement ? 'CUSTOMER STATEMENT VOUCHER' : 'TAX INVOICE';
+    const items = invoice.items || [];
+    const entries = invoice.statement_entries || [];
+
+    const itemsSection = isStatement
+      ? `
+0 -20 Td
+/F1 10 Tf
+(Statement Entries / Ledger Breakdown:) Tj
+0 -14 Td
+(Date           Details                                                Debit (AED)    Credit (AED)) Tj
+0 -10 Td
+(------------------------------------------------------------------------------------------------------) Tj
+/F2 9 Tf
+${entries
+  .map(
+    (e) => `
+0 -14 Td
+(${e.date.padEnd(14, ' ')} ${e.details.padEnd(52, ' ').slice(0, 52)} ${e.debit.toFixed(2).padStart(12, ' ')}   ${e.credit.toFixed(2).padStart(12, ' ')}) Tj`,
+  )
+  .join('')}
+`
+      : `
+0 -20 Td
+/F1 10 Tf
+(Item Description                           Ref/NB No.         Qty    Rate (AED)   Tax%    Amount (AED)) Tj
+0 -10 Td
+(------------------------------------------------------------------------------------------------------) Tj
+/F2 9 Tf
+${items
+  .map(
+    (item) => `
+0 -14 Td
+(${item.description.padEnd(34, ' ').slice(0, 34)}  ${(item.nbNo || '-').padEnd(16, ' ').slice(0, 16)}  ${item.qty.toString().padStart(3, ' ')}   ${item.rate.toFixed(2).padStart(10, ' ')}   ${(item.tax || 0).toString().padStart(3, ' ')}%   ${(item.netAmount ?? item.qty * item.rate).toFixed(2).padStart(12, ' ')}) Tj`,
+  )
+  .join('')}
+`;
+
+    const bankDetailsSection =
+      invoice.options?.include_bank_details !== false
+        ? `
+0 -20 Td
+/F1 9 Tf
+(Bank Settlement Details:) Tj
+0 -12 Td
+/F2 8 Tf
+(Bank: Emirates NBD | Account Name: Skyfall International Travels LLC | IBAN: AE000000000000000000000) Tj`
+        : '';
+
+    const watermarkText = invoice.options?.watermark
+      ? `
+0 -15 Td
+/F1 10 Tf
+(*** OFFICIAL SKYFALL DOCUMENT - VERIFIED & AUDITED ***) Tj`
+      : '';
+
+    const textContent = `
+%PDF-1.4
+1 0 obj
+<< /Title (${title} - ${invoice.invoice_number})
+   /Creator (Skyfall Financial & Travels ERP System v2.4.0)
+   /Producer (Skyfall Invoicing Engine) >>
+endobj
+2 0 obj
+<< /Type /Catalog /Pages 3 0 R >>
+endobj
+3 0 obj
+<< /Type /Pages /Kids [4 0 R] /Count 1 >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 3 0 R /MediaBox [0 0 612 792]
+   /Contents 5 0 R /Resources << /Font << /F1 6 0 R /F2 7 0 R >> >> >>
+endobj
+6 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+7 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 1800 >>
+stream
+BT
+/F1 18 Tf
+50 740 Td
+(SKYFALL INTERNATIONAL TRAVELS LLC) Tj
+/F2 9 Tf
+0 -16 Td
+(Government Visa Services, Attestation, Company Formation & Travels | Dubai, UAE) Tj
+0 -12 Td
+(Tel: +971 4 000 0000 | Email: accounts@skyfall.ae | TRN: 100456789000003) Tj
+
+/F1 13 Tf
+0 -26 Td
+(${title}: #${invoice.invoice_number}) Tj
+/F2 9 Tf
+0 -15 Td
+(Issue Date: ${invoice.issue_date}    |    Due Date: ${invoice.due_date}    |    Terms: ${invoice.payment_terms}    |    Status: ${invoice.status}) Tj
+0 -14 Td
+(Customer: ${invoice.customer_name} ${invoice.care_of ? `(C/O: ${invoice.care_of})` : ''}) Tj
+0 -14 Td
+(Contact: ${invoice.contact_name || invoice.customer_name}    |    Phone: ${invoice.customer_phone || 'N/A'}    |    Lead: ${invoice.lead_by}) Tj
+
+${itemsSection}
+
+0 -18 Td
+/F1 10 Tf
+(------------------------------------------------------------------------------------------------------) Tj
+0 -15 Td
+(SUBTOTAL:                                                                  ${invoice.currency} ${invoice.subtotal.toFixed(2)}) Tj
+0 -13 Td
+(VAT (5%):                                                                   ${invoice.currency} ${invoice.vat.toFixed(2)}) Tj
+${(invoice.additions || 0) > 0 ? `0 -13 Td\n(ADDITIONS:                                                                  ${invoice.currency} ${(invoice.additions || 0).toFixed(2)}) Tj` : ''}
+${(invoice.deductions || 0) > 0 ? `0 -13 Td\n(DEDUCTIONS:                                                                 ${invoice.currency} ${(invoice.deductions || 0).toFixed(2)}) Tj` : ''}
+0 -15 Td
+(GRAND TOTAL:                                                                ${invoice.currency} ${invoice.grand_total.toFixed(2)}) Tj
+0 -13 Td
+(PAID AMOUNT:                                                                ${invoice.currency} ${invoice.paid_amount.toFixed(2)}) Tj
+0 -13 Td
+(BALANCE REMAINING:                                                          ${invoice.currency} ${invoice.balance_amount.toFixed(2)}) Tj
+
+${bankDetailsSection}
+${watermarkText}
+
+0 -25 Td
+/F1 9 Tf
+(Authorized Accountant / Manager: ${invoice.lead_by}) Tj
+0 -12 Td
+/F2 8 Tf
+(Generated electronically by Skyfall ERP System v2.4.0. Valid without physical signature.) Tj
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000010 00000 n 
+0000000120 00000 n 
+0000000170 00000 n 
+0000000230 00000 n 
+0000000500 00000 n 
+0000000350 00000 n 
+0000000420 00000 n 
+trailer
+<< /Size 8 /Root 2 0 R /Info 1 0 R >>
+startxref
+2400
 %%EOF
     `.trim();
 

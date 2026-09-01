@@ -59,7 +59,9 @@ export class FinanceService {
     });
 
     if (transaction.status === 'completed' && transaction.bankAccountId) {
-      const bankAcc = await this.bankAccountRepository.findById(transaction.bankAccountId.toString());
+      const bankAcc = await this.bankAccountRepository.findById(
+        transaction.bankAccountId.toString(),
+      );
       if (bankAcc) {
         if (transaction.type === 'income') {
           bankAcc.currentBalance += transaction.amount;
@@ -96,7 +98,9 @@ export class FinanceService {
 
     // Reverse old transaction effect if it was completed
     if (transaction.status === 'completed' && transaction.bankAccountId) {
-      const bankAcc = await this.bankAccountRepository.findById(transaction.bankAccountId.toString());
+      const bankAcc = await this.bankAccountRepository.findById(
+        transaction.bankAccountId.toString(),
+      );
       if (bankAcc) {
         if (transaction.type === 'income') {
           bankAcc.currentBalance -= transaction.amount;
@@ -136,7 +140,9 @@ export class FinanceService {
 
     // Reverse old transaction effect if it was completed
     if (transaction.status === 'completed' && transaction.bankAccountId) {
-      const bankAcc = await this.bankAccountRepository.findById(transaction.bankAccountId.toString());
+      const bankAcc = await this.bankAccountRepository.findById(
+        transaction.bankAccountId.toString(),
+      );
       if (bankAcc) {
         if (transaction.type === 'income') {
           bankAcc.currentBalance -= transaction.amount;

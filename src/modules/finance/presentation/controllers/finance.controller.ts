@@ -41,7 +41,9 @@ export class FinanceController {
     try {
       const id = req.params.id as string;
       await this.getFinanceService().deleteBankAccount(id);
-      res.status(200).json(ResponseFormatter.success({ message: 'Bank account deleted successfully' }));
+      res
+        .status(200)
+        .json(ResponseFormatter.success({ message: 'Bank account deleted successfully' }));
     } catch (error) {
       next(error);
     }

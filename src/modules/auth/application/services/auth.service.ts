@@ -107,7 +107,10 @@ export class AuthService {
     return 'US';
   }
 
-  private resolvePermissions(roleKey: 'super_admin' | 'admin' | 'employee', roleObj?: IRole): string[] {
+  private resolvePermissions(
+    roleKey: 'super_admin' | 'admin' | 'employee',
+    roleObj?: IRole,
+  ): string[] {
     const rolePermissions = roleObj?.permissions ?? [];
     const defaults = DEFAULT_PERMISSIONS[roleKey] || [];
     return Array.from(new Set([...defaults, ...rolePermissions]));
@@ -134,7 +137,7 @@ export class AuthService {
   generateTokens(user: IUser, role?: IRole): { accessToken: string; refreshToken: string } {
     // Determine active company context
     const companyId = user.isSuperAdmin
-      ? (user.currentCompanyId?.toString() || user.companyId?.toString())
+      ? user.currentCompanyId?.toString() || user.companyId?.toString()
       : user.companyId?.toString();
 
     const roleKey = this.resolveRole(user, role);
@@ -234,7 +237,9 @@ export class AuthService {
     };
   }
 
-  async refresh(token: string): Promise<{ token: string; accessToken: string; refreshToken: string; expires_in: number }> {
+  async refresh(
+    token: string,
+  ): Promise<{ token: string; accessToken: string; refreshToken: string; expires_in: number }> {
     try {
       const decoded = jwt.verify(token, config.JWT_REFRESH_SECRET) as { id: string };
       const user = await this.userRepository.findById(decoded.id);
@@ -306,4 +311,3 @@ export class AuthService {
     };
   }
 }
-

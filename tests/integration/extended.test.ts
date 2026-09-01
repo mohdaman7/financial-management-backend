@@ -58,9 +58,7 @@ describe('Phase 7: Extended Operations Integration Tests', () => {
           governmentFees: 50,
           companyServiceCharge: 450,
           stepsToApply: ['Upload logs', 'Reconcile accounts', 'Submit declaration'],
-          faqs: [
-            { question: 'When is the deadline?', answer: '28 days after quarter end' },
-          ],
+          faqs: [{ question: 'When is the deadline?', answer: '28 days after quarter end' }],
         });
 
       expect(res.status).toBe(201);
@@ -162,7 +160,8 @@ describe('Phase 7: Extended Operations Integration Tests', () => {
 
   describe('Bulk CSV Ingestions', () => {
     it('should parse and import a batch customer list', async () => {
-      const csvContent = 'name,email,phone,country\nAlice Smith,alice@example.com,+12345,UAE\nBob Jones,bob@example.com,+67890,India';
+      const csvContent =
+        'name,email,phone,country\nAlice Smith,alice@example.com,+12345,UAE\nBob Jones,bob@example.com,+67890,India';
 
       const importRes = await getTestAgent()
         .post('/api/v1/import/customers')

@@ -38,4 +38,12 @@ export class AppError extends Error {
   static conflict(message: string, code = 'CONFLICT'): AppError {
     return new AppError(message, 409, code);
   }
+
+  static unprocessable(
+    message: string,
+    code = 'UNPROCESSABLE_ENTITY',
+    details?: unknown,
+  ): AppError {
+    return new AppError(message, 422, code, details);
+  }
 }

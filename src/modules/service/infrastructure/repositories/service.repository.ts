@@ -40,10 +40,11 @@ export class ServiceRepository {
     return ServiceModel.findOne(query).exec();
   }
 
-  async findAll(params: ServiceFilterParams): Promise<{ services: IService[]; total: number; page: number; limit: number }> {
+  async findAll(
+    params: ServiceFilterParams,
+  ): Promise<{ services: IService[]; total: number; page: number; limit: number }> {
     const { category, status, priority, search, companyId, page = 1, limit = 20 } = params;
     const query: any = {};
-
 
     if (category) {
       query.category = category;
@@ -105,4 +106,3 @@ export class ServiceRepository {
     return ServiceModel.findOneAndDelete(filter).exec();
   }
 }
-

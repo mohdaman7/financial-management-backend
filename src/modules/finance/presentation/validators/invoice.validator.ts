@@ -1,0 +1,111 @@
+import { z } from 'zod';
+
+const invoiceLineItemSchema = z.object({
+  id: z.string().optional(),
+  item: z.string().optional(),
+  description: z.string().min(1, 'Item description is required'),
+  nbNo: z.string().optional(),
+  name: z.string().optional(),
+  transNo: z.string().optional(),
+  qty: z.number().min(1, 'Quantity must be at least 1').default(1),
+  rate: z.number().min(0, 'Rate cannot be negative').default(0),
+  tax: z.number().min(0).max(100).optional().default(0),
+  withdrawDt: z.string().optional(),
+  account: z.string().optional(),
+  govCost: z.number().min(0).optional().default(0),
+  supl: z.string().optional(),
+  suplFee: z.number().min(0).optional().default(0),
+  pro: z.string().optional(),
+  proComm: z.number().min(0).optional().default(0),
+  commFrom: z.string().optional(),
+  commRecvd: z.number().min(0).optional().default(0),
+  disc: z.number().min(0).optional().default(0),
+});
+
+const additionItemSchema = z.object({
+  particular: z.string().min(1, 'Particular is required'),
+  value: z.number().default(0),
+});
+
+const deductionItemSchema = z.object({
+  particular: z.string().min(1, 'Particular is required'),
+  value: z.number().default(0),
+});
+
+const statementEntrySchema = z.object({
+  date: z.string().min(1, 'Statement entry date is required'),
+  details: z.string().min(1, 'Statement entry details are required'),
+  debit: z.number().default(0),
+  credit: z.number().default(0),
+});
+
+export const createInvoiceSchema = z.object({
+  invoice_type: z.enum(['standard', 'statement']).optional().default('standard'),
+  customer_id: z.string().optional(),
+  customer_name: z.string().min(1, "Field 'customer_name' is required when creating an invoice."),
+  care_of: z.string().optional(),
+  contact_name: z.string().optional(),
+  customer_email: z.string().optional(),
+  customer_phone: z.string().optional(),
+  customer_address: z.string().optional(),
+  passenger_name: z.string().optional(),
+  lead_by: z.string().optional().default('SAMEER EDAKKADAMBAN'),
+  lead_owner: z.string().optional(),
+  employee: z.string().optional().default('Staff'),
+  category: z.string().optional().default('General'),
+  issue_date: z.string().optional(),
+  due_date: z.string().optional(),
+  payment_terms: z.string().optional().default('CASH'),
+  remarks: z.string().optional(),
+  currency: z.string().optional().default('AED'),
+  status: z.string().optional(),
+  paid_amount: z.number().min(0).optional(),
+
+  items: z.array(invoiceLineItemSchema).optional().default([]),
+  addition_items: z.array(additionItemSchema).optional().default([]),
+  deduction_items: z.array(deductionItemSchema).optional().default([]),
+
+  period_start: z.string().optional(),
+  period_end: z.string().optional(),
+  opening_balance: z.number().optional().default(0),
+  statement_entries: z.array(statementEntrySchema).optional().default([]),
+});
+
+export const updateInvoiceSchema = z.object({
+  invoice_type: z.enum(['standard', 'statement']).optional(),
+  customer_id: z.string().optional(),
+  customer_name: z.string().min(1).optional(),
+  care_of: z.string().optional(),
+  contact_name: z.string().optional(),
+  customer_email: z.string().optional(),
+  customer_phone: z.string().optional(),
+  customer_address: z.string().optional(),
+  passenger_name: z.string().optional(),
+  lead_by: z.string().optional(),
+  lead_owner: z.string().optional(),
+  employee: z.string().optional(),
+  category: z.string().optional(),
+  issue_date: z.string().optional(),
+  due_date: z.string().optional(),
+  payment_terms: z.string().optional(),
+  remarks: z.string().optional(),
+  currency: z.string().optional(),
+  status: z.string().optional(),
+  paid_amount: z.number().min(0).optional(),
+
+  items: z.array(invoiceLineItemSchema).optional(),
+  addition_items: z.array(additionItemSchema).optional(),
+  deduction_items: z.array(deductionItemSchema).optional(),
+
+  period_start: z.string().optional(),
+  period_end: z.string().optional(),
+  opening_balance: z.number().optional(),
+  statement_entries: z.array(statementEntrySchema).optional(),
+});
+
+export const exportPdfSchema = z.object({
+  format: z.enum(['pdf', 'png']).optional().default('pdf'),
+  print_header_logo: z.boolean().optional().default(true),
+  include_bank_details: z.boolean().optional().default(true),
+  watermark: z.boolean().optional().default(false),
+});

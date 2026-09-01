@@ -99,4 +99,3 @@ export const updateServiceSchema = z.object({
   termsAndConditions: z.string().optional(),
   importantNotes: z.string().optional(),
 });
-

@@ -105,7 +105,9 @@ export class ImportController {
       const methodIndex = headers.indexOf('paymentmethod');
 
       if (typeIndex === -1 || categoryIndex === -1 || amountIndex === -1 || methodIndex === -1) {
-        throw AppError.badRequest('CSV must contain "type", "category", "amount", and "paymentMethod" columns');
+        throw AppError.badRequest(
+          'CSV must contain "type", "category", "amount", and "paymentMethod" columns',
+        );
       }
 
       const transactionsToInsert: any[] = [];

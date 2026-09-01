@@ -13,7 +13,10 @@ export const createTransactionSchema = z.object({
   status: z.enum(['pending', 'completed', 'cancelled']).optional(),
   reference: z.string().optional(),
   description: z.string().optional(),
-  bankAccountId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid Bank Account ID').optional(),
+  bankAccountId: z
+    .string()
+    .regex(/^[0-9a-fA-F]{24}$/, 'Invalid Bank Account ID')
+    .optional(),
 });
 
 export const updateTransactionSchema = z.object({
@@ -28,7 +31,10 @@ export const updateTransactionSchema = z.object({
   status: z.enum(['pending', 'completed', 'cancelled']).optional(),
   reference: z.string().optional(),
   description: z.string().optional(),
-  bankAccountId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid Bank Account ID').optional(),
+  bankAccountId: z
+    .string()
+    .regex(/^[0-9a-fA-F]{24}$/, 'Invalid Bank Account ID')
+    .optional(),
 });
 
 export const reportRangeSchema = z.object({

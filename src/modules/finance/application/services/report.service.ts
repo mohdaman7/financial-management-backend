@@ -102,9 +102,7 @@ export class ReportService {
         sent_count: filtered.filter((p) => p.status === 'sent').length,
         draft_count: filtered.filter((p) => p.status === 'draft').length,
         conversion_rate:
-          filtered.length > 0
-            ? `${Math.round((acceptedCount / filtered.length) * 100)}%`
-            : '0%',
+          filtered.length > 0 ? `${Math.round((acceptedCount / filtered.length) * 100)}%` : '0%',
       },
       meta: {
         total: filtered.length,
@@ -403,7 +401,13 @@ export class ReportService {
   // 7. Sales by Customer Report
   async getSalesByCustomerReport(
     companyId?: string,
-    filters: { customer_id?: string; start_date?: string; end_date?: string; page?: number; limit?: number } = {},
+    filters: {
+      customer_id?: string;
+      start_date?: string;
+      end_date?: string;
+      page?: number;
+      limit?: number;
+    } = {},
   ) {
     const query: any = {};
     if (filters.customer_id && Types.ObjectId.isValid(filters.customer_id)) {
@@ -456,21 +460,41 @@ export class ReportService {
   // 8. Customer Leads Report
   async getLeadsReport(
     companyId?: string,
-    filters: { lead_source?: string; priority?: string; assigned_agent_id?: string; start_date?: string; end_date?: string } = {},
+    filters: {
+      lead_source?: string;
+      priority?: string;
+      assigned_agent_id?: string;
+      start_date?: string;
+      end_date?: string;
+    } = {},
   ) {
     const query: any = {};
-    if (filters.lead_source && filters.lead_source !== 'all') query.lead_source = filters.lead_source;
+    if (filters.lead_source && filters.lead_source !== 'all')
+      query.lead_source = filters.lead_source;
     if (filters.priority && filters.priority !== 'all') query.priority = filters.priority;
-    if (filters.assigned_agent_id) query.assigned_employee_id = new Types.ObjectId(filters.assigned_agent_id);
+    if (filters.assigned_agent_id)
+      query.assigned_employee_id = new Types.ObjectId(filters.assigned_agent_id);
     if (filters.start_date || filters.end_date) {
       Object.assign(query, this.buildDateFilter(filters.start_date, filters.end_date, 'createdAt'));
     }
 
     const allCustomers = await CustomerModel.find(query).exec();
     const leads = allCustomers.filter((c) => c.status === 'lead' || c.status === 'new_lead');
-    const converted = allCustomers.filter((c) => c.status === 'active' || c.status === 'vip' || c.status === 'completed');
+    const converted = allCustomers.filter(
+      (c) => c.status === 'active' || c.status === 'vip' || c.status === 'completed',
+    );
 
-    const leadSources = ['walk_in', 'referral', 'social_media', 'google', 'whatsapp', 'phone', 'email', 'partner', 'other'];
+    const leadSources = [
+      'walk_in',
+      'referral',
+      'social_media',
+      'google',
+      'whatsapp',
+      'phone',
+      'email',
+      'partner',
+      'other',
+    ];
     const sourceBreakdown = leadSources.map((src) => ({
       source: src,
       count: allCustomers.filter((c) => c.lead_source === src).length,
@@ -508,7 +532,9 @@ export class ReportService {
   ) {
     const proposals = await TravelProposalModel.find({
       title: { $regex: '^CN-', $options: 'i' },
-    }).populate({ path: 'bookingId', populate: { path: 'customerId' } }).exec();
+    })
+      .populate({ path: 'bookingId', populate: { path: 'customerId' } })
+      .exec();
 
     const creditNotes = proposals.map((p) => {
       const booking = p.bookingId as any;
@@ -601,7 +627,13 @@ export class ReportService {
   // 11. Customer Statements & Aggregated Ledger
   async getCustomerStatementReport(
     companyId?: string,
-    filters: { customer_id?: string; start_date?: string; end_date?: string; page?: number; limit?: number } = {},
+    filters: {
+      customer_id?: string;
+      start_date?: string;
+      end_date?: string;
+      page?: number;
+      limit?: number;
+    } = {},
   ) {
     const invoices = await TravelInvoiceModel.find()
       .populate({ path: 'bookingId', populate: { path: 'customerId' } })
@@ -629,7 +661,9 @@ export class ReportService {
 
         (inv.payments || []).forEach((p) => {
           ledgerEntries.push({
-            date: p.date ? new Date(p.date).toISOString().split('T')[0] : inv.createdAt.toISOString().split('T')[0],
+            date: p.date
+              ? new Date(p.date).toISOString().split('T')[0]
+              : inv.createdAt.toISOString().split('T')[0],
             type: 'RECEIPT',
             reference: `PAY-${inv.invoiceNumber}`,
             description: `Payment received (${p.paymentMethod})`,
@@ -690,10 +724,7 @@ export class ReportService {
 
     return {
       supplier_statements: statements,
-      total_payables_outstanding: statements.reduce(
-        (acc, s) => acc + s.closing_payable_balance,
-        0,
-      ),
+      total_payables_outstanding: statements.reduce((acc, s) => acc + s.closing_payable_balance, 0),
     };
   }
 
@@ -703,8 +734,10 @@ export class ReportService {
     filters: { payment_method?: string; start_date?: string; end_date?: string } = {},
   ) {
     const query: any = { type: 'income' };
-    if (companyId && Types.ObjectId.isValid(companyId)) query.companyId = new Types.ObjectId(companyId);
-    if (filters.payment_method && filters.payment_method !== 'all') query.paymentMethod = filters.payment_method;
+    if (companyId && Types.ObjectId.isValid(companyId))
+      query.companyId = new Types.ObjectId(companyId);
+    if (filters.payment_method && filters.payment_method !== 'all')
+      query.paymentMethod = filters.payment_method;
     if (filters.start_date || filters.end_date) {
       Object.assign(query, this.buildDateFilter(filters.start_date, filters.end_date, 'date'));
     }
@@ -743,12 +776,19 @@ export class ReportService {
   // 14. Expenses & Operating Disbursements Report
   async getExpensesReport(
     companyId?: string,
-    filters: { category?: string; payment_method?: string; start_date?: string; end_date?: string } = {},
+    filters: {
+      category?: string;
+      payment_method?: string;
+      start_date?: string;
+      end_date?: string;
+    } = {},
   ) {
     const query: any = { type: 'expense' };
-    if (companyId && Types.ObjectId.isValid(companyId)) query.companyId = new Types.ObjectId(companyId);
+    if (companyId && Types.ObjectId.isValid(companyId))
+      query.companyId = new Types.ObjectId(companyId);
     if (filters.category && filters.category !== 'all') query.category = filters.category;
-    if (filters.payment_method && filters.payment_method !== 'all') query.paymentMethod = filters.payment_method;
+    if (filters.payment_method && filters.payment_method !== 'all')
+      query.paymentMethod = filters.payment_method;
     if (filters.start_date || filters.end_date) {
       Object.assign(query, this.buildDateFilter(filters.start_date, filters.end_date, 'date'));
     }
@@ -804,8 +844,7 @@ export class ReportService {
     const totalRevenue = incomeTxs.reduce((acc, t) => acc + t.amount, 0) || 340500.0;
     const totalCostOfSales = Math.round(totalRevenue * 0.5433) || 185000.0;
     const grossProfit = totalRevenue - totalCostOfSales;
-    const totalOperatingExpenses =
-      expenseTxs.reduce((acc, t) => acc + t.amount, 0) || 72800.0;
+    const totalOperatingExpenses = expenseTxs.reduce((acc, t) => acc + t.amount, 0) || 72800.0;
     const netOperatingIncome = grossProfit - totalOperatingExpenses;
 
     return {
@@ -865,10 +904,42 @@ export class ReportService {
     filters: { employee_id?: string; start_date?: string; end_date?: string } = {},
   ) {
     const staff = [
-      { id: 'usr_emp_01', name: 'SAMEER EDAKKADAMBAN', role: 'PRO Senior Agent', completed: 42, rate: 150, total: 6300, status: 'Paid' },
-      { id: 'usr_emp_02', name: 'HUDA MANSOOR', role: 'Visa Processing Specialist', completed: 35, rate: 120, total: 4200, status: 'Paid' },
-      { id: 'usr_emp_03', name: 'REEM AL NUAIMI', role: 'Corporate Setup Consultant', completed: 28, rate: 200, total: 5600, status: 'Pending' },
-      { id: 'usr_emp_04', name: 'HAMZA AL KHATIB', role: 'PRO Field Executive', completed: 50, rate: 100, total: 5000, status: 'Paid' },
+      {
+        id: 'usr_emp_01',
+        name: 'SAMEER EDAKKADAMBAN',
+        role: 'PRO Senior Agent',
+        completed: 42,
+        rate: 150,
+        total: 6300,
+        status: 'Paid',
+      },
+      {
+        id: 'usr_emp_02',
+        name: 'HUDA MANSOOR',
+        role: 'Visa Processing Specialist',
+        completed: 35,
+        rate: 120,
+        total: 4200,
+        status: 'Paid',
+      },
+      {
+        id: 'usr_emp_03',
+        name: 'REEM AL NUAIMI',
+        role: 'Corporate Setup Consultant',
+        completed: 28,
+        rate: 200,
+        total: 5600,
+        status: 'Pending',
+      },
+      {
+        id: 'usr_emp_04',
+        name: 'HAMZA AL KHATIB',
+        role: 'PRO Field Executive',
+        completed: 50,
+        rate: 100,
+        total: 5000,
+        status: 'Paid',
+      },
     ];
 
     const filtered = filters.employee_id
@@ -887,10 +958,38 @@ export class ReportService {
     filters: { employee_id?: string; start_date?: string; end_date?: string } = {},
   ) {
     const staff = [
-      { id: 'usr_emp_01', name: 'SAMEER EDAKKADAMBAN', customers: 24, completed_services: 42, revenue: 145000, conversion_rate: '82%' },
-      { id: 'usr_emp_02', name: 'HUDA MANSOOR', customers: 18, completed_services: 35, revenue: 98000, conversion_rate: '78%' },
-      { id: 'usr_emp_03', name: 'REEM AL NUAIMI', customers: 15, completed_services: 28, revenue: 112000, conversion_rate: '85%' },
-      { id: 'usr_emp_04', name: 'HAMZA AL KHATIB', customers: 20, completed_services: 50, revenue: 65000, conversion_rate: '75%' },
+      {
+        id: 'usr_emp_01',
+        name: 'SAMEER EDAKKADAMBAN',
+        customers: 24,
+        completed_services: 42,
+        revenue: 145000,
+        conversion_rate: '82%',
+      },
+      {
+        id: 'usr_emp_02',
+        name: 'HUDA MANSOOR',
+        customers: 18,
+        completed_services: 35,
+        revenue: 98000,
+        conversion_rate: '78%',
+      },
+      {
+        id: 'usr_emp_03',
+        name: 'REEM AL NUAIMI',
+        customers: 15,
+        completed_services: 28,
+        revenue: 112000,
+        conversion_rate: '85%',
+      },
+      {
+        id: 'usr_emp_04',
+        name: 'HAMZA AL KHATIB',
+        customers: 20,
+        completed_services: 50,
+        revenue: 65000,
+        conversion_rate: '75%',
+      },
     ];
 
     const filtered = filters.employee_id

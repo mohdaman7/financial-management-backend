@@ -13,7 +13,16 @@ export class SearchController {
       const query = (req.query.q as string) || '';
 
       if (!query) {
-        res.status(200).json(ResponseFormatter.success({ customers: [], services: [], transactions: [], bookings: [] }));
+        res
+          .status(200)
+          .json(
+            ResponseFormatter.success({
+              customers: [],
+              services: [],
+              transactions: [],
+              bookings: [],
+            }),
+          );
         return;
       }
 
@@ -25,19 +34,27 @@ export class SearchController {
         CustomerModel.find({
           companyId: companyObjectId,
           $or: [{ name: regex }, { email: regex }, { phone: regex }],
-        }).limit(10).exec(),
+        })
+          .limit(10)
+          .exec(),
         ServiceModel.find({
           companyId: companyObjectId,
           $or: [{ serviceName: regex }, { category: regex }, { description: regex }],
-        }).limit(10).exec(),
+        })
+          .limit(10)
+          .exec(),
         TransactionModel.find({
           companyId: companyObjectId,
           $or: [{ category: regex }, { reference: regex }, { description: regex }],
-        }).limit(10).exec(),
+        })
+          .limit(10)
+          .exec(),
         TravelBookingModel.find({
           companyId: companyObjectId,
           $or: [{ destination: regex }, { hotel: regex }, { visaType: regex }],
-        }).limit(10).exec(),
+        })
+          .limit(10)
+          .exec(),
       ]);
 
       res.status(200).json(

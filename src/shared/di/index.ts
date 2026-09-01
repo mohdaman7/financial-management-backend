@@ -10,6 +10,7 @@ import { TravelRepository } from '@modules/travel/infrastructure/repositories/tr
 import { ServiceRepository } from '@modules/service/infrastructure/repositories/service.repository';
 import { CustomerRepository } from '@modules/customer/infrastructure/repositories/customer.repository';
 import { ReceiptRepository } from '@modules/finance/infrastructure/repositories/receipt.repository';
+import { InvoiceRepository } from '@modules/finance/infrastructure/repositories/invoice.repository';
 import { AuthService } from '@modules/auth/application/services/auth.service';
 import { UserService } from '@modules/auth/application/services/user.service';
 import { RoleService } from '@modules/auth/application/services/role.service';
@@ -24,6 +25,7 @@ import { ServiceService } from '@modules/service/application/services/service.se
 import { CustomerService } from '@modules/customer/application/services/customer.service';
 import { ReportService } from '@modules/finance/application/services/report.service';
 import { ReceiptService } from '@modules/finance/application/services/receipt.service';
+import { InvoiceService } from '@modules/finance/application/services/invoice.service';
 import { AuditService } from '@modules/audit/application/services/audit.service';
 import { NotificationService } from '@modules/notification/application/services/notification.service';
 import { EmailService } from '@shared/services/email.service';
@@ -44,6 +46,7 @@ export function initializeContainer(): void {
   const serviceRepository = new ServiceRepository();
   const customerRepository = new CustomerRepository();
   const receiptRepository = new ReceiptRepository();
+  const invoiceRepository = new InvoiceRepository();
 
   Container.register('UserRepository', userRepository);
   Container.register('RoleRepository', roleRepository);
@@ -56,6 +59,7 @@ export function initializeContainer(): void {
   Container.register('ServiceRepository', serviceRepository);
   Container.register('CustomerRepository', customerRepository);
   Container.register('ReceiptRepository', receiptRepository);
+  Container.register('InvoiceRepository', invoiceRepository);
 
   // Services
   const emailService = new EmailService();
@@ -77,6 +81,7 @@ export function initializeContainer(): void {
   const customerService = new CustomerService(customerRepository);
   const reportService = new ReportService();
   const receiptService = new ReceiptService(receiptRepository);
+  const invoiceService = new InvoiceService(invoiceRepository);
   const auditService = new AuditService();
   const notificationService = new NotificationService();
 
@@ -95,6 +100,7 @@ export function initializeContainer(): void {
   Container.register('CustomerService', customerService);
   Container.register('ReportService', reportService);
   Container.register('ReceiptService', receiptService);
+  Container.register('InvoiceService', invoiceService);
   Container.register('AuditService', auditService);
   Container.register('NotificationService', notificationService);
 }

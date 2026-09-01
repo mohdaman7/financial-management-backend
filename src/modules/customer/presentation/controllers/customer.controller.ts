@@ -14,15 +14,8 @@ export class CustomerController {
   listCustomers = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const companyId = req.companyId as string | undefined;
-      const {
-        status,
-        priority,
-        lead_source,
-        assigned_employee_id,
-        search,
-        page,
-        limit,
-      } = req.query as Record<string, string | undefined>;
+      const { status, priority, lead_source, assigned_employee_id, search, page, limit } =
+        req.query as Record<string, string | undefined>;
 
       const result = await this.getCustomerService().listCustomers(
         companyId,

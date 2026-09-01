@@ -1,6 +1,14 @@
 import { Types } from 'mongoose';
-import { CustomerRepository, CustomerFilters, PaginationOptions } from '../../infrastructure/repositories/customer.repository';
-import { ICustomer, ICustomerDocument, ICustomerActivityLog } from '../../infrastructure/models/Customer.model';
+import {
+  CustomerRepository,
+  CustomerFilters,
+  PaginationOptions,
+} from '../../infrastructure/repositories/customer.repository';
+import {
+  ICustomer,
+  ICustomerDocument,
+  ICustomerActivityLog,
+} from '../../infrastructure/models/Customer.model';
 import { AppError } from '@shared/errors/AppError';
 import { getGridFSBucket } from '@shared/middleware/gridfs.middleware';
 
@@ -60,7 +68,8 @@ export class CustomerService {
   ): Promise<ICustomer> {
     const customerPayload: Partial<ICustomer> = {
       ...data,
-      companyId: companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined,
+      companyId:
+        companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined,
       assigned_employee_id:
         data.assigned_employee_id && Types.ObjectId.isValid(data.assigned_employee_id)
           ? new Types.ObjectId(data.assigned_employee_id)
@@ -175,7 +184,11 @@ export class CustomerService {
     return newDoc;
   }
 
-  async deleteDocument(customerId: string, documentId: string, performedBy = 'System'): Promise<void> {
+  async deleteDocument(
+    customerId: string,
+    documentId: string,
+    performedBy = 'System',
+  ): Promise<void> {
     const customer = await this.getCustomerById(customerId);
     const docToDelete = customer.documents.find(
       (d: any) => d._id?.toString() === documentId || d.id === documentId,

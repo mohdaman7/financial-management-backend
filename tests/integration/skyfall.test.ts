@@ -146,7 +146,8 @@ describe('Skyfall International Travels — Auth & Services API Integration', ()
         category: 'UAE Visa & Immigration Services',
         sub_category: 'Investor & Executive Visa',
         icon: 'Globe',
-        description: 'Complete 10-year residency visa processing for investors, executives, and high-net-worth individuals.',
+        description:
+          'Complete 10-year residency visa processing for investors, executives, and high-net-worth individuals.',
         government_department: 'GDRFA / ICP Dubai',
         country: 'United Arab Emirates',
         required_documents: ['Valid Passport Copy', 'Title Deed'],

@@ -3,7 +3,8 @@ import { Schema, model, Document, Types } from 'mongoose';
 export interface ICustomerDocument {
   id?: string;
   name: string;
-  type: 'Passport' | 'Corporate License' | 'Visa Document' | 'Service Application' | 'Other' | string;
+  type:
+    'Passport' | 'Corporate License' | 'Visa Document' | 'Service Application' | 'Other' | string;
   file_url: string;
   fileId?: Types.ObjectId | string;
   size_bytes?: number;

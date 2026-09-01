@@ -61,11 +61,7 @@ export class ReceiptController {
       const companyId = req.companyId as string | undefined;
       const receivedBy = (req.user as any)?.name || req.user?.email || 'System';
 
-      const receipt = await this.getReceiptService().createReceipt(
-        companyId,
-        req.body,
-        receivedBy,
-      );
+      const receipt = await this.getReceiptService().createReceipt(companyId, req.body, receivedBy);
 
       res.status(201).json({
         success: true,

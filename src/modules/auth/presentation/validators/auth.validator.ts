@@ -25,4 +25,3 @@ export const logoutSchema = z
 export const switchCompanySchema = z.object({
   companyId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid Company ID format'),
 });
-

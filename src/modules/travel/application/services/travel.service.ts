@@ -302,4 +302,3 @@ export class TravelService {
     await this.travelRepository.deleteInvoice(id);
   }
 }
-

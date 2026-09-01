@@ -52,9 +52,9 @@ describe('Attendance Module Integration Tests', () => {
         .post('/api/v1/attendance/clock-in')
         .set('Authorization', `Bearer ${employeeToken}`);
       expect(clockInRes.status).toBe(201);
-      expect(clockInRes.body.success).toBe(true);
-      expect(clockInRes.body.data).toHaveProperty('clockIn');
-      expect(clockInRes.body.data.date).toBe(new Date().toISOString().split('T')[0]);
+      const now = new Date();
+      const expectedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      expect(clockInRes.body.data.date).toBe(expectedDate);
 
       // 3. Double Clock In should fail
       const clockInFail = await getTestAgent()

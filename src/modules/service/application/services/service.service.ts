@@ -1,4 +1,7 @@
-import { ServiceRepository, ServiceFilterParams } from '../../infrastructure/repositories/service.repository';
+import {
+  ServiceRepository,
+  ServiceFilterParams,
+} from '../../infrastructure/repositories/service.repository';
 import { IService } from '../../infrastructure/models/Service.model';
 import { Types } from 'mongoose';
 import { AppError } from '@shared/errors/AppError';
@@ -79,11 +82,17 @@ export class ServiceService {
     };
   }
 
-  async listServices(params: ServiceFilterParams): Promise<{ services: IService[]; total: number; page: number; limit: number }> {
+  async listServices(
+    params: ServiceFilterParams,
+  ): Promise<{ services: IService[]; total: number; page: number; limit: number }> {
     return this.serviceRepository.findAll(params);
   }
 
-  async createService(companyId: string | undefined, data: Partial<IService>, userId?: string): Promise<IService> {
+  async createService(
+    companyId: string | undefined,
+    data: Partial<IService>,
+    userId?: string,
+  ): Promise<IService> {
     const normalized = this.normalizeServiceData(data);
     if (!normalized.name) {
       throw AppError.badRequest('Service name is required');
@@ -145,4 +154,3 @@ export class ServiceService {
     await this.serviceRepository.delete(id);
   }
 }
-

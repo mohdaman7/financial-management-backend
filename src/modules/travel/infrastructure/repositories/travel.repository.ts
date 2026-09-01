@@ -119,4 +119,3 @@ export class TravelRepository {
     return TravelInvoiceModel.findByIdAndDelete(id).exec();
   }
 }
-

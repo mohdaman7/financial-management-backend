@@ -39,7 +39,10 @@ export class ProposalService {
     companyId?: string,
     filters: { status?: string; start_date?: string; end_date?: string; search?: string } = {},
     pagination: { page: number; limit: number } = { page: 1, limit: 20 },
-  ): Promise<{ proposals: ITravelProposal[]; meta: { total: number; page: number; limit: number } }> {
+  ): Promise<{
+    proposals: ITravelProposal[];
+    meta: { total: number; page: number; limit: number };
+  }> {
     const query: any = {};
 
     if (companyId && Types.ObjectId.isValid(companyId)) {
@@ -112,7 +115,10 @@ export class ProposalService {
 
     if (items.length > 0 && (!grandTotal || grandTotal === 0)) {
       subtotal = items.reduce((acc, item) => acc + item.rate * item.qty, 0);
-      totalTax = items.reduce((acc, item) => acc + (item.rate * item.qty * (item.tax || 5)) / 100, 0);
+      totalTax = items.reduce(
+        (acc, item) => acc + (item.rate * item.qty * (item.tax || 5)) / 100,
+        0,
+      );
       grandTotal = subtotal + totalTax;
     } else if (grandTotal > 0 && (!subtotal || subtotal === 0)) {
       subtotal = Math.round((grandTotal / 1.05) * 100) / 100;
@@ -120,9 +126,16 @@ export class ProposalService {
     }
 
     const proposal = new TravelProposalModel({
-      companyId: companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined,
-      bookingId: data.bookingId && Types.ObjectId.isValid(data.bookingId) ? new Types.ObjectId(data.bookingId) : undefined,
-      customerId: data.customerId && Types.ObjectId.isValid(data.customerId) ? new Types.ObjectId(data.customerId) : undefined,
+      companyId:
+        companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined,
+      bookingId:
+        data.bookingId && Types.ObjectId.isValid(data.bookingId)
+          ? new Types.ObjectId(data.bookingId)
+          : undefined,
+      customerId:
+        data.customerId && Types.ObjectId.isValid(data.customerId)
+          ? new Types.ObjectId(data.customerId)
+          : undefined,
       quoteRef,
       title: quoteRef,
       date: data.date || new Date().toISOString().split('T')[0],

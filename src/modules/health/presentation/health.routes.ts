@@ -35,7 +35,7 @@ router.get('/seed', async (req, res) => {
       email,
       passwordHash,
       isSuperAdmin: true,
-      status: 'active'
+      status: 'active',
     });
     res.json({ message: `Success! Super admin created with email: ${email}` });
   } catch (error: any) {

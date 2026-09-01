@@ -79,7 +79,8 @@ export class ReceiptService {
         invoice.payments.push({
           amount: allocated,
           date: new Date(),
-          paymentMethod: (data.paymentMethod.toLowerCase().replace(' ', '_') as any) || 'bank_transfer',
+          paymentMethod:
+            (data.paymentMethod.toLowerCase().replace(' ', '_') as any) || 'bank_transfer',
         });
 
         if (totalPaid + allocated >= invoice.amount) {
@@ -100,7 +101,8 @@ export class ReceiptService {
 
     // Record Income Transaction in Finance module
     await TransactionModel.create({
-      companyId: companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined,
+      companyId:
+        companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined,
       type: 'income',
       category: 'Receipt Payment Inflow',
       amount: data.amount,
@@ -132,9 +134,16 @@ export class ReceiptService {
     }
 
     const receipt = await this.receiptRepository.create({
-      companyId: companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined,
-      invoiceId: data.invoiceId && Types.ObjectId.isValid(data.invoiceId) ? new Types.ObjectId(data.invoiceId) : undefined,
-      customerId: data.customerId && Types.ObjectId.isValid(data.customerId) ? new Types.ObjectId(data.customerId) : undefined,
+      companyId:
+        companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined,
+      invoiceId:
+        data.invoiceId && Types.ObjectId.isValid(data.invoiceId)
+          ? new Types.ObjectId(data.invoiceId)
+          : undefined,
+      customerId:
+        data.customerId && Types.ObjectId.isValid(data.customerId)
+          ? new Types.ObjectId(data.customerId)
+          : undefined,
       reference,
       customerName: data.customerName,
       paymentMethod: data.paymentMethod,
