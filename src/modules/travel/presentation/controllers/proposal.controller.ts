@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { Container } from '@shared/di/index';
 import { ProposalService } from '../../application/services/proposal.service';
-import { ResponseFormatter } from '@shared/utils/responseFormatter';
 
 export class ProposalController {
   private getProposalService(): ProposalService {
@@ -25,7 +24,12 @@ export class ProposalController {
         },
       );
 
-      res.status(200).json(ResponseFormatter.success(result.proposals, result.meta));
+      res.status(200).json({
+        success: true,
+        status: 'success',
+        meta: result.meta,
+        data: result.proposals,
+      });
     } catch (error) {
       next(error);
     }
@@ -35,7 +39,13 @@ export class ProposalController {
     try {
       const id = req.params.id as string;
       const proposal = await this.getProposalService().getProposalById(id);
-      res.status(200).json(ResponseFormatter.success(proposal));
+      const formatted = this.getProposalService().formatQuotationDetail(proposal);
+
+      res.status(200).json({
+        success: true,
+        status: 'success',
+        data: formatted,
+      });
     } catch (error) {
       next(error);
     }
@@ -44,7 +54,7 @@ export class ProposalController {
   createProposal = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const companyId = req.companyId as string | undefined;
-      const createdBy = (req.user as any)?.name || req.user?.email || 'System';
+      const createdBy = (req.user as any)?.name || req.user?.email || 'Skyfall International Team';
 
       const proposal = await this.getProposalService().createProposal(
         companyId,
@@ -52,9 +62,15 @@ export class ProposalController {
         createdBy,
       );
 
+      const isProposalRoute = req.originalUrl.includes('/proposals');
+      const message = isProposalRoute
+        ? 'Quotation proposal generated successfully'
+        : 'Quotation generated successfully';
+
       res.status(201).json({
         success: true,
-        message: 'Quotation proposal generated successfully',
+        status: 'success',
+        message,
         data: proposal,
       });
     } catch (error) {
@@ -67,9 +83,15 @@ export class ProposalController {
       const id = req.params.id as string;
       const proposal = await this.getProposalService().updateProposal(id, req.body);
 
+      const isProposalRoute = req.originalUrl.includes('/proposals');
+      const message = isProposalRoute
+        ? 'Proposal updated successfully'
+        : 'Quotation updated successfully';
+
       res.status(200).json({
         success: true,
-        message: 'Proposal updated successfully',
+        status: 'success',
+        message,
         data: proposal,
       });
     } catch (error) {
@@ -82,9 +104,15 @@ export class ProposalController {
       const id = req.params.id as string;
       await this.getProposalService().deleteProposal(id);
 
+      const isProposalRoute = req.originalUrl.includes('/proposals');
+      const message = isProposalRoute
+        ? 'Proposal deleted successfully'
+        : 'Quotation deleted successfully';
+
       res.status(200).json({
         success: true,
-        message: 'Proposal deleted successfully',
+        status: 'success',
+        message,
       });
     } catch (error) {
       next(error);
@@ -105,6 +133,7 @@ export class ProposalController {
 
       res.status(200).json({
         success: true,
+        status: 'success',
         message: result.message,
       });
     } catch (error) {
@@ -134,6 +163,7 @@ export class ProposalController {
 
       res.status(201).json({
         success: true,
+        status: 'success',
         message: 'Proposal converted to Tax Invoice successfully',
         data: invoiceData,
       });
@@ -142,3 +172,5 @@ export class ProposalController {
     }
   };
 }
+
+export const QuotationController = ProposalController;

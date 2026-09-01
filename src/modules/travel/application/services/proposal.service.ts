@@ -8,40 +8,181 @@ import { TravelInvoiceModel } from '../../infrastructure/models/TravelInvoice.mo
 import { AppError } from '@shared/errors/AppError';
 import { EmailService } from '@shared/services/email.service';
 import { PdfGenerator } from '@shared/utils/pdfGenerator';
+import { formatQuotationWords } from '@shared/utils/numberToWords';
 
 export interface CreateProposalDTO {
+  quote_ref?: string;
+  quoteRef?: string;
   date?: string;
+  payment_terms?: string;
   paymentTerms?: string;
   customerId?: string;
+  customer_id?: string;
   bookingId?: string;
-  customerName: string;
+  customerName?: string;
+  customer_name?: string;
   contactName?: string;
+  contact_name?: string;
   customerPhone?: string;
+  customer_phone?: string;
   customerEmail?: string;
+  customer_email?: string;
   customerAddress?: string;
+  customer_address?: string;
   passengerName?: string;
-  subject: string;
+  passenger_name?: string;
+  subject?: string;
+  title?: string;
   items?: IQuotationLineItem[];
   subtotal?: number;
+  discount_amount?: number;
+  discountAmount?: number;
   totalTax?: number;
+  total_tax?: number;
   grandTotal?: number;
+  grand_total?: number;
+  paid_amount?: number;
+  paidAmount?: number;
+  balance_amount?: number;
+  balanceAmount?: number;
   totalPrice?: number;
-  title?: string;
   amountInWords?: string;
+  amount_in_words?: string;
   notes?: string;
-  status?: 'draft' | 'sent' | 'accepted' | 'declined' | 'approved' | 'rejected' | string;
+  details?: string;
+  createdBy?: string;
+  created_by?: string;
+  status?: 'draft' | 'sent' | 'accepted' | 'declined' | 'expired' | 'approved' | 'rejected' | string;
 }
 
 export class ProposalService {
   constructor(private emailService: EmailService) {}
+
+  private computeFinancials(
+    items: IQuotationLineItem[],
+    discountAmount = 0,
+    paidAmount = 0,
+  ): {
+    subtotal: number;
+    discount_amount: number;
+    total_tax: number;
+    grand_total: number;
+    paid_amount: number;
+    balance_amount: number;
+    amount_in_words: string;
+  } {
+    const subtotal = items.reduce(
+      (sum, item) => sum + (Number(item.rate) || 0) * (Number(item.qty) || 0),
+      0,
+    );
+    const clampedDiscount = Math.min(subtotal, Math.max(0, discountAmount || 0));
+    const taxableAmount = Math.max(0, subtotal - clampedDiscount);
+
+    let totalTax = 0;
+    if (subtotal > 0) {
+      totalTax = items.reduce((sum, item) => {
+        const lineTotal = (Number(item.rate) || 0) * (Number(item.qty) || 0);
+        const propShare = (lineTotal / subtotal) * clampedDiscount;
+        const itemTaxable = Math.max(0, lineTotal - propShare);
+        const taxRate = item.tax !== undefined ? Number(item.tax) : 5;
+        return sum + (itemTaxable * taxRate) / 100;
+      }, 0);
+    }
+
+    const roundedSubtotal = Math.round(subtotal * 100) / 100;
+    const roundedDiscount = Math.round(clampedDiscount * 100) / 100;
+    const roundedTax = Math.round(totalTax * 100) / 100;
+    const grandTotal = Math.round((taxableAmount + roundedTax) * 100) / 100;
+    const balanceAmount = Math.round((grandTotal - (paidAmount || 0)) * 100) / 100;
+    const amountInWords = formatQuotationWords(grandTotal);
+
+    return {
+      subtotal: roundedSubtotal,
+      discount_amount: roundedDiscount,
+      total_tax: roundedTax,
+      grand_total: grandTotal,
+      paid_amount: Math.round((paidAmount || 0) * 100) / 100,
+      balance_amount: balanceAmount,
+      amount_in_words: amountInWords,
+    };
+  }
+
+  formatQuotationDetail(q: ITravelProposal): any {
+    const items = (q.items || []).map((item, index) => ({
+      id: item.id || `item-${index + 1}`,
+      description: item.description,
+      qty: item.qty,
+      rate: item.rate,
+      tax: item.tax ?? 5,
+      amount: item.amount ?? item.rate * item.qty,
+    }));
+
+    const rawId = q.custom_id || q._id.toString();
+    const quoteRef = q.quoteRef || q.title || '';
+    const grandTotal = q.grandTotal ?? q.totalPrice ?? 0;
+    const subtotal = q.subtotal ?? 0;
+    const totalTax = q.totalTax ?? 0;
+    const discountAmount = q.discount_amount ?? q.discountAmount ?? 0;
+    const paidAmount = q.paid_amount ?? q.paidAmount ?? 0;
+    const balanceAmount = q.balance_amount ?? q.balanceAmount ?? grandTotal - paidAmount;
+
+    return {
+      id: rawId,
+      _id: q._id.toString(),
+      custom_id: q.custom_id || rawId,
+      quote_ref: quoteRef,
+      quoteRef,
+      date: q.date,
+      payment_terms: q.paymentTerms || 'CASH',
+      paymentTerms: q.paymentTerms || 'CASH',
+      customer_name: q.customerName,
+      customerName: q.customerName,
+      contact_name: q.contactName || q.customerName,
+      contactName: q.contactName || q.customerName,
+      customer_phone: q.customerPhone || '',
+      customerPhone: q.customerPhone || '',
+      customer_email: q.customerEmail || '',
+      customerEmail: q.customerEmail || '',
+      customer_address: q.customerAddress || '',
+      customerAddress: q.customerAddress || '',
+      passenger_name: q.passengerName || q.customerName,
+      passengerName: q.passengerName || q.customerName,
+      subject: q.subject || q.title || 'VISA & AIR TICKETING QUOTE',
+      title: q.subject || q.title || 'VISA & AIR TICKETING QUOTE',
+      created_by: q.createdBy || 'Skyfall International Team',
+      createdBy: q.createdBy || 'Skyfall International Team',
+      notes: q.notes || q.details || '',
+      details: q.notes || q.details || '',
+      status: q.status || 'draft',
+      items,
+      subtotal,
+      discount_amount: discountAmount,
+      discountAmount,
+      total_tax: totalTax,
+      totalTax,
+      grand_total: grandTotal,
+      grandTotal,
+      totalPrice: grandTotal,
+      paid_amount: paidAmount,
+      paidAmount,
+      balance_amount: balanceAmount,
+      balanceAmount,
+      amount_in_words: q.amountInWords || '',
+      amountInWords: q.amountInWords || '',
+      created_at: q.createdAt ? q.createdAt.toISOString() : new Date().toISOString(),
+      createdAt: q.createdAt ? q.createdAt.toISOString() : new Date().toISOString(),
+      updated_at: q.updatedAt ? q.updatedAt.toISOString() : new Date().toISOString(),
+      updatedAt: q.updatedAt ? q.updatedAt.toISOString() : new Date().toISOString(),
+    };
+  }
 
   async listProposals(
     companyId?: string,
     filters: { status?: string; start_date?: string; end_date?: string; search?: string } = {},
     pagination: { page: number; limit: number } = { page: 1, limit: 20 },
   ): Promise<{
-    proposals: ITravelProposal[];
-    meta: { total: number; page: number; limit: number };
+    proposals: any[];
+    meta: { total: number; total_records: number; page: number; limit: number; total_pages: number };
   }> {
     const query: any = {};
 
@@ -50,7 +191,7 @@ export class ProposalService {
     }
 
     if (filters.status && filters.status !== 'all') {
-      query.status = filters.status;
+      query.status = { $regex: new RegExp(`^${filters.status.trim()}$`, 'i') };
     }
 
     if (filters.start_date || filters.end_date) {
@@ -65,13 +206,22 @@ export class ProposalService {
 
     if (filters.search && filters.search.trim()) {
       const s = filters.search.trim();
-      query.$or = [
+      const searchConditions = [
         { customerName: { $regex: s, $options: 'i' } },
         { quoteRef: { $regex: s, $options: 'i' } },
+        { custom_id: { $regex: s, $options: 'i' } },
         { title: { $regex: s, $options: 'i' } },
         { subject: { $regex: s, $options: 'i' } },
         { contactName: { $regex: s, $options: 'i' } },
+        { customerEmail: { $regex: s, $options: 'i' } },
       ];
+
+      if (query.$or) {
+        query.$and = [{ $or: query.$or }, { $or: searchConditions }];
+        delete query.$or;
+      } else {
+        query.$or = searchConditions;
+      }
     }
 
     const page = Math.max(1, pagination.page || 1);
@@ -83,16 +233,30 @@ export class ProposalService {
       TravelProposalModel.countDocuments(query).exec(),
     ]);
 
-    return { proposals, meta: { total, page, limit } };
+    const total_pages = Math.ceil(total / limit) || 1;
+    const formatted = proposals.map((p) => this.formatQuotationDetail(p));
+
+    return {
+      proposals: formatted,
+      meta: { total, total_records: total, page, limit, total_pages },
+    };
   }
 
   async getProposalById(id: string): Promise<ITravelProposal> {
-    if (!Types.ObjectId.isValid(id)) {
-      throw AppError.notFound('Proposal not found');
+    if (!id) {
+      throw AppError.notFound(`Quotation '${id}' not found`, 'QUOTATION_NOT_FOUND');
     }
-    const proposal = await TravelProposalModel.findById(id).exec();
+
+    let proposal = await TravelProposalModel.findOne({
+      $or: [{ custom_id: id }, { quoteRef: id }, { title: id }],
+    }).exec();
+
+    if (!proposal && Types.ObjectId.isValid(id)) {
+      proposal = await TravelProposalModel.findById(id).exec();
+    }
+
     if (!proposal) {
-      throw AppError.notFound('Proposal not found');
+      throw AppError.notFound(`Quotation with ID '${id}' not found`, 'QUOTATION_NOT_FOUND');
     }
     return proposal;
   }
@@ -101,100 +265,171 @@ export class ProposalService {
     companyId: string | undefined,
     data: CreateProposalDTO,
     createdBy = 'System',
-  ): Promise<ITravelProposal> {
-    // Generate auto quote reference SQ-YYYY-XXXX if not provided
+  ): Promise<any> {
+    const customerName = data.customer_name || data.customerName;
+    if (!customerName || !customerName.trim()) {
+      throw AppError.badRequest("Field 'customer_name' is mandatory.", 'MISSING_CUSTOMER_NAME');
+    }
+
+    const rawItems = data.items || [];
+    if (!Array.isArray(rawItems) || rawItems.length === 0) {
+      throw AppError.badRequest('Quotation request must contain at least one item.', 'EMPTY_LINE_ITEMS');
+    }
+
+    for (const item of rawItems) {
+      if (item.qty === undefined || item.qty <= 0) {
+        throw AppError.unprocessable('Quantity must be greater than zero.', 'INVALID_ITEM_QUANTITY');
+      }
+      if (item.rate === undefined || item.rate < 0) {
+        throw AppError.unprocessable('Rate must be non-negative.', 'INVALID_ITEM_QUANTITY');
+      }
+    }
+
+    const items: IQuotationLineItem[] = rawItems.map((item, idx) => ({
+      id: item.id || `item-${idx + 1}`,
+      description: item.description,
+      qty: Number(item.qty),
+      rate: Number(item.rate),
+      tax: item.tax !== undefined ? Number(item.tax) : 5,
+      amount: Number(item.rate) * Number(item.qty),
+    }));
+
+    const discountAmount = Number(data.discount_amount ?? data.discountAmount ?? 0);
+    const paidAmount = Number(data.paid_amount ?? data.paidAmount ?? 0);
+
+    const financials = this.computeFinancials(items, discountAmount, paidAmount);
+
     const year = new Date().getFullYear();
     const count = await TravelProposalModel.countDocuments();
-    const quoteRef = `SQ-${year}-${String(count + 1).padStart(4, '0')}`;
-
-    let subtotal = data.subtotal || 0;
-    let totalTax = data.totalTax || 0;
-    let grandTotal = data.grandTotal || data.totalPrice || 0;
-
-    const items = Array.isArray(data.items) && data.items.length > 0 ? data.items : [];
-
-    if (items.length > 0 && (!grandTotal || grandTotal === 0)) {
-      subtotal = items.reduce((acc, item) => acc + item.rate * item.qty, 0);
-      totalTax = items.reduce(
-        (acc, item) => acc + (item.rate * item.qty * (item.tax || 5)) / 100,
-        0,
-      );
-      grandTotal = subtotal + totalTax;
-    } else if (grandTotal > 0 && (!subtotal || subtotal === 0)) {
-      subtotal = Math.round((grandTotal / 1.05) * 100) / 100;
-      totalTax = Math.round((grandTotal - subtotal) * 100) / 100;
-    }
+    const quoteRef = data.quote_ref || data.quoteRef || `SQ-${year}-${String(count + 1).padStart(4, '0')}`;
+    const customId = `qt-${Math.floor(1000 + Math.random() * 9000)}-${Math.random().toString(36).substring(2, 6)}`;
 
     const proposal = new TravelProposalModel({
       companyId:
         companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined,
+      custom_id: customId,
       bookingId:
         data.bookingId && Types.ObjectId.isValid(data.bookingId)
           ? new Types.ObjectId(data.bookingId)
           : undefined,
       customerId:
-        data.customerId && Types.ObjectId.isValid(data.customerId)
-          ? new Types.ObjectId(data.customerId)
+        (data.customer_id || data.customerId) && Types.ObjectId.isValid(data.customer_id || (data.customerId as string))
+          ? new Types.ObjectId(data.customer_id || (data.customerId as string))
           : undefined,
       quoteRef,
       title: quoteRef,
       date: data.date || new Date().toISOString().split('T')[0],
-      paymentTerms: data.paymentTerms || '50% ADVANCE',
-      customerName: data.customerName,
-      contactName: data.contactName || data.customerName,
-      customerPhone: data.customerPhone || '',
-      customerEmail: data.customerEmail || '',
-      customerAddress: data.customerAddress || '',
-      passengerName: data.passengerName || data.customerName,
-      subject: data.subject || data.title || 'Quotation Proposal',
+      paymentTerms: data.payment_terms || data.paymentTerms || 'CASH',
+      customerName: customerName.trim(),
+      contactName: data.contact_name || data.contactName || customerName.trim(),
+      customerPhone: data.customer_phone || data.customerPhone || '',
+      customerEmail: data.customer_email || data.customerEmail || '',
+      customerAddress: data.customer_address || data.customerAddress || '',
+      passengerName: data.passenger_name || data.passengerName || customerName.trim(),
+      subject: data.subject || data.title || 'VISA & AIR TICKETING QUOTE',
       items,
-      subtotal,
-      totalTax,
-      grandTotal,
-      totalPrice: grandTotal,
-      amountInWords: data.amountInWords || `AED ${grandTotal.toFixed(2)}`,
-      notes: data.notes || '',
-      createdBy,
+      subtotal: financials.subtotal,
+      discount_amount: financials.discount_amount,
+      totalTax: financials.total_tax,
+      grandTotal: financials.grand_total,
+      paid_amount: financials.paid_amount,
+      balance_amount: financials.balance_amount,
+      totalPrice: financials.grand_total,
+      amountInWords: data.amount_in_words || data.amountInWords || financials.amount_in_words,
+      notes: data.notes || data.details || '',
+      createdBy: data.created_by || data.createdBy || createdBy,
       status: data.status || 'draft',
     });
 
-    return proposal.save();
+    const saved = await proposal.save();
+    return this.formatQuotationDetail(saved);
   }
 
-  async updateProposal(id: string, data: Partial<CreateProposalDTO>): Promise<ITravelProposal> {
+  async updateProposal(id: string, data: Partial<CreateProposalDTO>): Promise<any> {
     const proposal = await this.getProposalById(id);
 
     if (data.items && Array.isArray(data.items)) {
-      proposal.items = data.items;
-      proposal.subtotal = data.items.reduce((acc, item) => acc + item.rate * item.qty, 0);
-      proposal.totalTax = data.items.reduce(
-        (acc, item) => acc + (item.rate * item.qty * (item.tax || 5)) / 100,
-        0,
-      );
-      proposal.grandTotal = proposal.subtotal + proposal.totalTax;
-      proposal.totalPrice = proposal.grandTotal;
+      if (data.items.length === 0) {
+        throw AppError.badRequest('Quotation request must contain at least one item.', 'EMPTY_LINE_ITEMS');
+      }
+
+      for (const item of data.items) {
+        if (item.qty === undefined || item.qty <= 0) {
+          throw AppError.unprocessable('Quantity must be greater than zero.', 'INVALID_ITEM_QUANTITY');
+        }
+        if (item.rate === undefined || item.rate < 0) {
+          throw AppError.unprocessable('Rate must be non-negative.', 'INVALID_ITEM_QUANTITY');
+        }
+      }
+
+      proposal.items = data.items.map((item, idx) => ({
+        id: item.id || `item-${idx + 1}`,
+        description: item.description,
+        qty: Number(item.qty),
+        rate: Number(item.rate),
+        tax: item.tax !== undefined ? Number(item.tax) : 5,
+        amount: Number(item.rate) * Number(item.qty),
+      }));
     }
 
-    if (data.status) proposal.status = data.status;
-    if (data.notes) proposal.notes = data.notes;
-    if (data.paymentTerms) proposal.paymentTerms = data.paymentTerms;
-    if (data.subject) proposal.subject = data.subject;
-    if (data.customerName) proposal.customerName = data.customerName;
-    if (data.customerEmail) proposal.customerEmail = data.customerEmail;
-    if (data.customerPhone) proposal.customerPhone = data.customerPhone;
-    if (data.amountInWords) proposal.amountInWords = data.amountInWords;
+    const discountAmount =
+      data.discount_amount !== undefined
+        ? Number(data.discount_amount)
+        : data.discountAmount !== undefined
+          ? Number(data.discountAmount)
+          : proposal.discount_amount ?? 0;
 
-    return proposal.save();
+    const paidAmount =
+      data.paid_amount !== undefined
+        ? Number(data.paid_amount)
+        : data.paidAmount !== undefined
+          ? Number(data.paidAmount)
+          : proposal.paid_amount ?? 0;
+
+    const financials = this.computeFinancials(proposal.items, discountAmount, paidAmount);
+
+    proposal.subtotal = financials.subtotal;
+    proposal.discount_amount = financials.discount_amount;
+    proposal.totalTax = financials.total_tax;
+    proposal.grandTotal = financials.grand_total;
+    proposal.paid_amount = financials.paid_amount;
+    proposal.balance_amount = financials.balance_amount;
+    proposal.totalPrice = financials.grand_total;
+    proposal.amountInWords = financials.amount_in_words;
+
+    if (data.status) proposal.status = data.status;
+    if (data.notes !== undefined) proposal.notes = data.notes;
+    if (data.details !== undefined) proposal.details = data.details;
+    if (data.payment_terms || data.paymentTerms)
+      proposal.paymentTerms = data.payment_terms || (data.paymentTerms as string);
+    if (data.subject || data.title) proposal.subject = data.subject || (data.title as string);
+    if (data.customer_name || data.customerName)
+      proposal.customerName = data.customer_name || (data.customerName as string);
+    if (data.contact_name || data.contactName)
+      proposal.contactName = data.contact_name || (data.contactName as string);
+    if (data.customer_email || data.customerEmail)
+      proposal.customerEmail = data.customer_email || (data.customerEmail as string);
+    if (data.customer_phone || data.customerPhone)
+      proposal.customerPhone = data.customer_phone || (data.customerPhone as string);
+    if (data.customer_address || data.customerAddress)
+      proposal.customerAddress = data.customer_address || (data.customerAddress as string);
+    if (data.passenger_name || data.passengerName)
+      proposal.passengerName = data.passenger_name || (data.passengerName as string);
+    if (data.amount_in_words || data.amountInWords)
+      proposal.amountInWords = data.amount_in_words || (data.amountInWords as string);
+
+    const updated = await proposal.save();
+    return this.formatQuotationDetail(updated);
   }
 
   async deleteProposal(id: string): Promise<void> {
-    await this.getProposalById(id);
-    await TravelProposalModel.findByIdAndDelete(id).exec();
+    const proposal = await this.getProposalById(id);
+    await TravelProposalModel.findByIdAndDelete(proposal._id).exec();
   }
 
   async sendProposalEmail(
     id: string,
-    recipientEmail: string,
+    recipientEmail?: string,
     ccEmails?: string[],
     customMessage?: string,
   ): Promise<{ message: string }> {
@@ -224,7 +459,9 @@ export class ProposalService {
 
   async generatePdf(id: string): Promise<{ buffer: Buffer; filename: string }> {
     const proposal = await this.getProposalById(id);
-    const filename = `Proposal_${proposal.quoteRef || proposal._id}.pdf`;
+    const safeRef = (proposal.quoteRef || 'QUOTATION').replace(/[^a-zA-Z0-9]/g, '_');
+    const safeCustomer = (proposal.customerName || 'CUSTOMER').replace(/[^a-zA-Z0-9]/g, '_');
+    const filename = `QUOTATION_${safeRef}_${safeCustomer}.pdf`;
 
     const buffer = PdfGenerator.generateProposalPdf({
       quoteRef: proposal.quoteRef || proposal.title || 'SQ-2026-0001',
@@ -236,11 +473,14 @@ export class ProposalService {
       customerAddress: proposal.customerAddress,
       passengerName: proposal.passengerName,
       subject: proposal.subject || proposal.title || 'Service Quotation',
-      paymentTerms: proposal.paymentTerms || '50% ADVANCE',
+      paymentTerms: proposal.paymentTerms || 'CASH',
       items: proposal.items || [],
       subtotal: proposal.subtotal || 0,
+      discount_amount: proposal.discount_amount || 0,
       totalTax: proposal.totalTax || 0,
       grandTotal: proposal.grandTotal || proposal.totalPrice || 0,
+      paid_amount: proposal.paid_amount || 0,
+      balance_amount: proposal.balance_amount || 0,
       amountInWords: proposal.amountInWords,
       notes: proposal.notes,
     });
@@ -252,36 +492,37 @@ export class ProposalService {
     const proposal = await this.getProposalById(id);
 
     const year = new Date().getFullYear();
-    const count = await TravelInvoiceModel.countDocuments();
-    const invoiceNumber = `INV-${year}-${String(count + 1).padStart(4, '0')}`;
+    const invoiceNumber = `INV-TRV-${year}-${String(Math.floor(1000 + Math.random() * 9000))}`;
 
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 14); // 14 days payment term
-
-    const invoice = await TravelInvoiceModel.create({
+    const invoice = new TravelInvoiceModel({
       companyId:
         companyId && Types.ObjectId.isValid(companyId)
           ? new Types.ObjectId(companyId)
-          : proposal.companyId || undefined,
+          : proposal.companyId || new Types.ObjectId(),
       bookingId: proposal.bookingId || new Types.ObjectId(),
       invoiceNumber,
-      amount: proposal.grandTotal || proposal.totalPrice || 0,
-      dueDate,
+      amount: proposal.grandTotal,
       status: 'unpaid',
       payments: [],
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
 
+    await invoice.save();
+
     proposal.status = 'accepted';
-    proposal.invoiceId = invoice._id;
+    proposal.invoiceId = invoice._id as Types.ObjectId;
     await proposal.save();
 
     return {
-      invoice_id: invoice._id.toString(),
+      invoiceId: invoice._id,
+      invoice_id: invoice._id,
+      proposalId: proposal._id,
+      proposal_id: proposal._id,
+      invoiceNumber: invoice.invoiceNumber,
       invoice_number: invoice.invoiceNumber,
-      proposal_id: proposal._id.toString(),
       grandTotal: invoice.amount,
-      status: 'unpaid',
-      created_at: invoice.createdAt.toISOString(),
+      grand_total: invoice.amount,
+      status: invoice.status,
     };
   }
 }

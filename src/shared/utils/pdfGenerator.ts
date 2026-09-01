@@ -15,19 +15,38 @@ export class PdfGenerator {
     passengerName?: string;
     subject: string;
     paymentTerms: string;
-    items: Array<{ description: string; qty: number; rate: number; tax: number; amount?: number }>;
+    items: Array<{ description: string; qty: number; rate: number; tax?: number; amount?: number }>;
     subtotal: number;
+    discount_amount?: number;
     totalTax: number;
     grandTotal: number;
+    paid_amount?: number;
+    balance_amount?: number;
     amountInWords?: string;
     notes?: string;
   }): Buffer {
+    const discountSection =
+      proposal.discount_amount && proposal.discount_amount > 0
+        ? `
+0 -15 Td
+(DISCOUNT:                                                                     -AED ${proposal.discount_amount.toFixed(2)}) Tj`
+        : '';
+
+    const paymentSection =
+      proposal.paid_amount && proposal.paid_amount > 0
+        ? `
+0 -15 Td
+(PAID ADVANCE:                                                                 AED ${proposal.paid_amount.toFixed(2)}) Tj
+0 -15 Td
+(BALANCE REMAINING:                                                            AED ${(proposal.balance_amount ?? proposal.grandTotal - proposal.paid_amount).toFixed(2)}) Tj`
+        : '';
+
     const textContent = `
 %PDF-1.4
 1 0 obj
-<< /Title (Quotation Proposal - ${proposal.quoteRef})
-   /Creator (Skyfall International Travels CRM)
-   /Producer (Skyfall PDF Engine) >>
+<< /Title (Service Quotation - ${proposal.quoteRef})
+   /Creator (Skyfall Financial & Travels ERP System v2.4.0)
+   /Producer (Skyfall Quotation Engine) >>
 endobj
 2 0 obj
 << /Type /Catalog /Pages 3 0 R >>
@@ -46,7 +65,7 @@ endobj
 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
 endobj
 5 0 obj
-<< /Length 1200 >>
+<< /Length 2000 >>
 stream
 BT
 /F1 18 Tf
@@ -83,7 +102,7 @@ ${proposal.items
   .map(
     (item) => `
 0 -16 Td
-(${item.description.padEnd(45, ' ').slice(0, 45)}  ${item.qty.toString().padStart(3, ' ')}    ${item.rate.toFixed(2).padStart(10, ' ')}        ${item.tax}%       ${(item.rate * item.qty * (1 + item.tax / 100)).toFixed(2).padStart(12, ' ')}) Tj`,
+(${item.description.padEnd(45, ' ').slice(0, 45)}  ${item.qty.toString().padStart(3, ' ')}    ${item.rate.toFixed(2).padStart(10, ' ')}        ${item.tax ?? 5}%       ${(item.rate * item.qty * (1 + (item.tax ?? 5) / 100)).toFixed(2).padStart(12, ' ')}) Tj`,
   )
   .join('')}
 
@@ -91,24 +110,24 @@ ${proposal.items
 /F1 11 Tf
 (------------------------------------------------------------------------------------------------------) Tj
 0 -18 Td
-(SUBTOTAL:                                                                   AED ${proposal.subtotal.toFixed(2)}) Tj
+(SUBTOTAL:                                                                   AED ${proposal.subtotal.toFixed(2)}) Tj${discountSection}
 0 -15 Td
-(VAT (5%):                                                                    AED ${proposal.totalTax.toFixed(2)}) Tj
+(VAT:                                                                         AED ${proposal.totalTax.toFixed(2)}) Tj
 0 -18 Td
-(GRAND TOTAL:                                                                 AED ${proposal.grandTotal.toFixed(2)}) Tj
+(GRAND TOTAL:                                                                 AED ${proposal.grandTotal.toFixed(2)}) Tj${paymentSection}
 
 0 -25 Td
 /F2 9 Tf
 (Amount in Words: ${proposal.amountInWords || 'AED ' + proposal.grandTotal.toFixed(2)}) Tj
 0 -15 Td
-(Notes: ${proposal.notes || 'Prices include government fees and service charges. Valid for 30 days.'}) Tj
+(Notes: ${proposal.notes || 'Prices include government fees and service charges. Valid for 14 days from issue date.'}) Tj
 
 0 -40 Td
 /F1 10 Tf
 (Authorized Signatory: SAMEER EDAKKADAMBAN) Tj
 0 -14 Td
 /F2 8 Tf
-(Generated electronically by Skyfall ERP System. Valid without physical stamp.) Tj
+(Generated electronically by Skyfall ERP System v2.4.0. Valid without physical stamp.) Tj
 ET
 endstream
 endobj
@@ -131,6 +150,8 @@ startxref
 
     return Buffer.from(textContent, 'utf-8');
   }
+
+  static generateQuotationPdf = PdfGenerator.generateProposalPdf;
 
   static generateReceiptPdf(receipt: {
     reference: string;

@@ -26,7 +26,18 @@ const ONES = [
   'NINETEEN',
 ];
 
-const TENS = ['', '', 'TWENTY', 'THIRTY', 'FORTY', 'FIFTY', 'SIXTY', 'SEVENTY', 'EIGHTY', 'NINETY'];
+const TENS = [
+  '',
+  '',
+  'TWENTY',
+  'THIRTY',
+  'FORTY',
+  'FIFTY',
+  'SIXTY',
+  'SEVENTY',
+  'EIGHTY',
+  'NINETY',
+];
 
 function convertBelowThousand(n: number): string {
   if (n === 0) return '';
@@ -34,7 +45,7 @@ function convertBelowThousand(n: number): string {
   if (n < 100) {
     const ten = TENS[Math.floor(n / 10)];
     const rem = ONES[n % 10];
-    return rem ? `${ten} ${rem}` : ten;
+    return rem ? `${ten}-${rem}` : ten;
   }
   const hundred = `${ONES[Math.floor(n / 100)]} HUNDRED`;
   const rem = n % 100;
@@ -77,6 +88,29 @@ export function numberToWords(num: number): string {
  */
 export function formatSalaryLegalWording(amount: number): string {
   const formattedNumber = amount.toLocaleString('en-US');
-  const words = numberToWords(amount);
+  const words = numberToWords(amount).replace(/-/g, ' ');
   return `AED ${formattedNumber} (${words} UAE DIRHAMS) PER MONTH.`;
+}
+
+/**
+ * Format quotation amount into verbal representation.
+ * e.g. 5775 -> "Five Thousand Seven Hundred Seventy-Five UAE Dirhams Only"
+ */
+export function formatQuotationWords(amount: number): string {
+  const integer = Math.floor(amount);
+  const words = numberToWords(integer);
+  const title = words
+    .toLowerCase()
+    .split(' ')
+    .map((w) => {
+      if (w.includes('-')) {
+        return w
+          .split('-')
+          .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+          .join('-');
+      }
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    })
+    .join(' ');
+  return `${title} UAE Dirhams Only`;
 }
