@@ -443,4 +443,156 @@ startxref
 
     return Buffer.from(textContent, 'utf-8');
   }
+
+  static generateOfferLetterPdf(offerLetter: {
+    reference_no: string;
+    company_name: string;
+    company_email?: string;
+    employee_full_name: string;
+    position: string;
+    offer_date: string;
+    join_by_date: string;
+    monthly_salary_amount: number;
+    probation_period: string;
+    monthly_salary_formatted: string;
+    place_of_employment: string;
+    working_hours_standard: string;
+    candidate_bio: {
+      dob?: string;
+      gender?: string;
+      nationality?: string;
+      passport_number: string;
+      passport_issue_date?: string;
+      passport_expiry_date?: string;
+      passport_place_of_issue?: string;
+      permanent_home_address?: string;
+    };
+    status: string;
+    options?: {
+      include_company_stamp?: boolean;
+      watermark?: boolean;
+    };
+  }): Buffer {
+    const bio = offerLetter.candidate_bio;
+    const watermarkText = offerLetter.options?.watermark
+      ? `
+0 -15 Td
+/F1 10 Tf
+(*** OFFICIAL EMPLOYMENT OFFER - VERIFIED BY HR ***) Tj`
+      : '';
+
+    const textContent = `
+%PDF-1.4
+1 0 obj
+<< /Title (Employment Offer Letter - ${offerLetter.employee_full_name})
+   /Creator (Skyfall Financial & Travels ERP System v2.4.0)
+   /Producer (Skyfall Offer Letter Engine) >>
+endobj
+2 0 obj
+<< /Type /Catalog /Pages 3 0 R >>
+endobj
+3 0 obj
+<< /Type /Pages /Kids [4 0 R] /Count 1 >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 3 0 R /MediaBox [0 0 612 792]
+   /Contents 5 0 R /Resources << /Font << /F1 6 0 R /F2 7 0 R >> >> >>
+endobj
+6 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+7 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 2000 >>
+stream
+BT
+/F1 18 Tf
+50 740 Td
+(${offerLetter.company_name.toUpperCase()}) Tj
+/F2 9 Tf
+0 -16 Td
+(Official Corporate Employment Offer Letter | United Arab Emirates) Tj
+0 -12 Td
+(Email: ${offerLetter.company_email || 'hr@company.co.ae'} | Ref: ${offerLetter.reference_no} | Date: ${offerLetter.offer_date}) Tj
+
+/F1 12 Tf
+0 -26 Td
+(CONFIDENTIAL EMPLOYMENT OFFER LETTER) Tj
+/F2 10 Tf
+0 -18 Td
+(Dear ${offerLetter.employee_full_name},) Tj
+0 -15 Td
+(We are pleased to offer you the position of ${offerLetter.position} at ${offerLetter.company_name}.) Tj
+0 -14 Td
+(This offer is subject to standard UAE employment regulations, visa processing, and document verification.) Tj
+
+0 -22 Td
+/F1 10 Tf
+(TERMS & REMUNERATION PACKAGE:) Tj
+0 -15 Td
+/F2 9 Tf
+(Position / Title: ${offerLetter.position}) Tj
+0 -14 Td
+(Monthly Salary: ${offerLetter.monthly_salary_formatted}) Tj
+0 -14 Td
+(Probation Period: ${offerLetter.probation_period}) Tj
+0 -14 Td
+(Place of Employment: ${offerLetter.place_of_employment}) Tj
+0 -14 Td
+(Working Hours: ${offerLetter.working_hours_standard}) Tj
+0 -14 Td
+(Date of Joining (Join By): ${offerLetter.join_by_date}) Tj
+
+0 -22 Td
+/F1 10 Tf
+(CANDIDATE PASSPORT & VERIFICATION PARTICULARS:) Tj
+0 -15 Td
+/F2 9 Tf
+(Candidate Name: ${offerLetter.employee_full_name}    |    Gender: ${bio.gender || 'MALE'}    |    DOB: ${bio.dob || 'N/A'}) Tj
+0 -14 Td
+(Passport Number: ${bio.passport_number}    |    Nationality: ${bio.nationality || 'N/A'}    |    Place of Issue: ${bio.passport_place_of_issue || 'N/A'}) Tj
+0 -14 Td
+(Passport Validity: Issue: ${bio.passport_issue_date || 'N/A'}    |    Expiry: ${bio.passport_expiry_date || 'N/A'}) Tj
+0 -14 Td
+(Residential Address: ${bio.permanent_home_address || 'DUBAI, UAE'}) Tj
+
+${watermarkText}
+
+0 -30 Td
+/F1 9 Tf
+(FOR AND ON BEHALF OF EMPLOYER:                    CANDIDATE ACCEPTANCE:) Tj
+0 -15 Td
+/F2 8 Tf
+(Authorized HR / General Manager                  I accept the terms and conditions outlined above.) Tj
+0 -25 Td
+(Signature: _________________________             Signature: _________________________) Tj
+0 -14 Td
+(Date: ${offerLetter.offer_date}                                 Date: ______________________________) Tj
+0 -18 Td
+/F2 8 Tf
+(Generated electronically by Skyfall ERP System v2.4.0. Formal employment contract executed on Ministry portal.) Tj
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000010 00000 n 
+0000000120 00000 n 
+0000000170 00000 n 
+0000000230 00000 n 
+0000000500 00000 n 
+0000000350 00000 n 
+0000000420 00000 n 
+trailer
+<< /Size 8 /Root 2 0 R /Info 1 0 R >>
+startxref
+2600
+%%EOF
+    `.trim();
+
+    return Buffer.from(textContent, 'utf-8');
+  }
 }

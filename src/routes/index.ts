@@ -20,6 +20,7 @@ import documentRoutes from '@modules/customer/presentation/routes/document.route
 import searchRoutes from '@modules/dashboard/presentation/routes/search.routes';
 import importRoutes from '@modules/dashboard/presentation/routes/import.routes';
 import invoiceRoutes from '@modules/finance/presentation/routes/invoice.routes';
+import offerLetterRoutes from '@modules/employee/presentation/routes/offerLetter.routes';
 
 const router = Router();
 
@@ -40,10 +41,13 @@ router.use('/proposals', proposalRoutes);
 router.use('/quotations', proposalRoutes);
 router.use('/receipts', receiptRoutes);
 router.use('/invoices', invoiceRoutes);
+router.use('/offer-letters', offerLetterRoutes);
 router.use('/travels/proposals', proposalRoutes);
 router.use('/travels/quotations', proposalRoutes);
 router.use('/travels/receipts', receiptRoutes);
 router.use('/travels/invoices', invoiceRoutes);
+router.use('/travels/offer-letters', offerLetterRoutes);
+router.use('/employees/offer-letters', offerLetterRoutes);
 router.use('/audit-logs', auditRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/services', serviceRoutes);

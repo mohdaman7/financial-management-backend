@@ -13,16 +13,14 @@ export class SearchController {
       const query = (req.query.q as string) || '';
 
       if (!query) {
-        res
-          .status(200)
-          .json(
-            ResponseFormatter.success({
-              customers: [],
-              services: [],
-              transactions: [],
-              bookings: [],
-            }),
-          );
+        res.status(200).json(
+          ResponseFormatter.success({
+            customers: [],
+            services: [],
+            transactions: [],
+            bookings: [],
+          }),
+        );
         return;
       }
 
