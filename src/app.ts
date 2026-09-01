@@ -27,7 +27,12 @@ export function createApp(): Application {
   app.use(
     cors({
       origin: (origin, callback) => {
-        if (!origin || config.NODE_ENV !== 'production' || allowedOrigins.includes(origin)) {
+        if (
+          !origin ||
+          config.NODE_ENV !== 'production' ||
+          allowedOrigins.includes('*') ||
+          allowedOrigins.includes(origin)
+        ) {
           callback(null, true);
         } else {
           callback(new Error('Not allowed by CORS'));
