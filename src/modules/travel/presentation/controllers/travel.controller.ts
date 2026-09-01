@@ -29,6 +29,36 @@ export class TravelController {
     }
   };
 
+  getCustomerById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = req.params.id as string;
+      const customer = await this.getTravelService().getCustomerById(id);
+      res.status(200).json(ResponseFormatter.success(customer));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateCustomer = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = req.params.id as string;
+      const customer = await this.getTravelService().updateCustomer(id, req.body);
+      res.status(200).json(ResponseFormatter.success(customer));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  deleteCustomer = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = req.params.id as string;
+      await this.getTravelService().deleteCustomer(id);
+      res.status(200).json(ResponseFormatter.success({ message: 'Customer deleted successfully' }));
+    } catch (error) {
+      next(error);
+    }
+  };
+
   // --- Bookings ---
   createBooking = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -62,6 +92,26 @@ export class TravelController {
     }
   };
 
+  updateBooking = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = req.params.id as string;
+      const booking = await this.getTravelService().updateBooking(id, req.body);
+      res.status(200).json(ResponseFormatter.success(booking));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  deleteBooking = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = req.params.id as string;
+      await this.getTravelService().deleteBooking(id);
+      res.status(200).json(ResponseFormatter.success({ message: 'Booking deleted successfully' }));
+    } catch (error) {
+      next(error);
+    }
+  };
+
   // --- Proposals ---
   createProposal = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -83,6 +133,16 @@ export class TravelController {
     }
   };
 
+  getProposalById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = req.params.id as string;
+      const proposal = await this.getTravelService().getProposalById(id);
+      res.status(200).json(ResponseFormatter.success(proposal));
+    } catch (error) {
+      next(error);
+    }
+  };
+
   updateProposalStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const id = req.params.id as string;
@@ -90,6 +150,16 @@ export class TravelController {
 
       const proposal = await this.getTravelService().updateProposalStatus(id, status);
       res.status(200).json(ResponseFormatter.success(proposal));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  deleteProposal = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = req.params.id as string;
+      await this.getTravelService().deleteProposal(id);
+      res.status(200).json(ResponseFormatter.success({ message: 'Proposal deleted successfully' }));
     } catch (error) {
       next(error);
     }
@@ -106,6 +176,36 @@ export class TravelController {
     }
   };
 
+  getInvoiceById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = req.params.id as string;
+      const invoice = await this.getTravelService().getInvoiceById(id);
+      res.status(200).json(ResponseFormatter.success(invoice));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createInvoice = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const companyId = req.companyId as string;
+      const invoice = await this.getTravelService().createInvoice(companyId, req.body);
+      res.status(201).json(ResponseFormatter.success(invoice));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  deleteInvoice = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = req.params.id as string;
+      await this.getTravelService().deleteInvoice(id);
+      res.status(200).json(ResponseFormatter.success({ message: 'Invoice deleted successfully' }));
+    } catch (error) {
+      next(error);
+    }
+  };
+
   recordPayment = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const id = req.params.id as string;
@@ -116,3 +216,4 @@ export class TravelController {
     }
   };
 }
+

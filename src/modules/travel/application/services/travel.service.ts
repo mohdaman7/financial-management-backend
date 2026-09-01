@@ -16,17 +16,41 @@ export class TravelService {
   // --- Customers ---
   async createCustomer(
     companyId: string,
-    data: { name: string; email: string; phone?: string; passportNumber?: string },
+    data: {
+      name: string;
+      email?: string;
+      phone?: string;
+      whatsapp?: string;
+      passportNumber?: string;
+      passport_number?: string;
+      passport_expiry?: string;
+      nationality?: string;
+      country?: string;
+      company_name?: string;
+      assigned_employee_id?: string;
+      assigned_agent?: string;
+      lead_source?: string;
+      status?: string;
+      priority?: string;
+      current_service?: string;
+      tags?: string[];
+      notes?: string;
+      internal_notes?: string;
+    },
   ): Promise<ITravelCustomer> {
-    const existing = await this.travelRepository.findCustomerByEmail(companyId, data.email);
-    if (existing) {
-      throw AppError.conflict('Customer with this email already exists');
+    if (data.email) {
+      const existing = await this.travelRepository.findCustomerByEmail(companyId, data.email);
+      if (existing) {
+        throw AppError.conflict('Customer with this email already exists');
+      }
     }
 
     return this.travelRepository.createCustomer({
       ...data,
       companyId: new Types.ObjectId(companyId),
-      status: 'new_lead',
+      status: data.status || 'lead',
+      priority: data.priority || 'normal',
+      passport_number: data.passport_number || data.passportNumber,
     });
   }
 
@@ -94,10 +118,22 @@ export class TravelService {
       throw AppError.notFound('Booking not found');
     }
 
+    const customerName = (booking.customerId as any)?.name || 'Valued Customer';
+    const subtotal = Math.round((data.totalPrice / 1.05) * 100) / 100;
+    const totalTax = Math.round((data.totalPrice - subtotal) * 100) / 100;
+
     const proposal = await this.travelRepository.createProposal({
       ...data,
       bookingId: new Types.ObjectId(data.bookingId),
       companyId: new Types.ObjectId(companyId),
+      customerId: (booking.customerId as any)?._id || booking.customerId,
+      customerName,
+      subject: data.title,
+      quoteRef: data.title,
+      subtotal,
+      totalTax,
+      grandTotal: data.totalPrice,
+      totalPrice: data.totalPrice,
       status: 'draft',
     });
 
@@ -190,4 +226,80 @@ export class TravelService {
 
     return invoice;
   }
+
+  async getCustomerById(id: string): Promise<ITravelCustomer> {
+    const customer = await this.travelRepository.findCustomerById(id);
+    if (!customer) {
+      throw AppError.notFound('Customer not found');
+    }
+    return customer;
+  }
+
+  async updateCustomer(id: string, data: Partial<ITravelCustomer>): Promise<ITravelCustomer> {
+    const customer = await this.travelRepository.findCustomerById(id);
+    if (!customer) {
+      throw AppError.notFound('Customer not found');
+    }
+    const updated = await this.travelRepository.updateCustomer(id, data);
+    if (!updated) {
+      throw AppError.notFound('Customer not found');
+    }
+    return updated;
+  }
+
+  async deleteCustomer(id: string): Promise<void> {
+    const customer = await this.travelRepository.findCustomerById(id);
+    if (!customer) {
+      throw AppError.notFound('Customer not found');
+    }
+    await this.travelRepository.deleteCustomer(id);
+  }
+
+  async deleteBooking(id: string): Promise<void> {
+    const booking = await this.travelRepository.findBookingById(id);
+    if (!booking) {
+      throw AppError.notFound('Booking not found');
+    }
+    await this.travelRepository.deleteBooking(id);
+  }
+
+  async getProposalById(id: string): Promise<ITravelProposal> {
+    const proposal = await this.travelRepository.findProposalById(id);
+    if (!proposal) {
+      throw AppError.notFound('Proposal not found');
+    }
+    return proposal;
+  }
+
+  async deleteProposal(id: string): Promise<void> {
+    const proposal = await this.travelRepository.findProposalById(id);
+    if (!proposal) {
+      throw AppError.notFound('Proposal not found');
+    }
+    await this.travelRepository.deleteProposal(id);
+  }
+
+  async getInvoiceById(id: string): Promise<ITravelInvoice> {
+    const invoice = await this.travelRepository.findInvoiceById(id);
+    if (!invoice) {
+      throw AppError.notFound('Invoice not found');
+    }
+    return invoice;
+  }
+
+  async createInvoice(companyId: string, data: Partial<ITravelInvoice>): Promise<ITravelInvoice> {
+    return this.travelRepository.createInvoice({
+      ...data,
+      companyId: new Types.ObjectId(companyId),
+    });
+  }
+
+  async deleteInvoice(id: string): Promise<void> {
+    const invoice = await this.travelRepository.findInvoiceById(id);
+    if (!invoice) {
+      throw AppError.notFound('Invoice not found');
+    }
+    await this.travelRepository.deleteInvoice(id);
+  }
 }
+

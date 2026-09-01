@@ -2,9 +2,52 @@ import { z } from 'zod';
 
 export const createCustomerSchema = z.object({
   name: z.string().min(2, 'Customer name is required'),
-  email: z.string().email('Invalid email address'),
+  email: z.string().email('Invalid email address').optional().or(z.literal('')),
   phone: z.string().optional(),
+  whatsapp: z.string().optional(),
   passportNumber: z.string().optional(),
+  passport_number: z.string().optional(),
+  passport_expiry: z.string().optional(),
+  nationality: z.string().optional(),
+  country: z.string().optional(),
+  company_name: z.string().optional(),
+  assigned_employee_id: z.string().optional(),
+  assigned_agent: z.string().optional(),
+  lead_source: z
+    .enum([
+      'walk_in',
+      'referral',
+      'social_media',
+      'google',
+      'whatsapp',
+      'phone',
+      'email',
+      'partner',
+      'other',
+    ])
+    .optional(),
+  status: z
+    .enum([
+      'lead',
+      'active',
+      'vip',
+      'inactive',
+      'blocked',
+      'new_lead',
+      'contacted',
+      'follow_up',
+      'processing',
+      'waiting_for_documents',
+      'payment_pending',
+      'completed',
+      'cancelled',
+    ])
+    .optional(),
+  priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
+  current_service: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  notes: z.string().optional(),
+  internal_notes: z.string().optional(),
 });
 
 export const createBookingSchema = z.object({

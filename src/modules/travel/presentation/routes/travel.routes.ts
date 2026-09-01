@@ -35,6 +35,30 @@ router.get(
   controller.listCustomers,
 );
 
+router.get(
+  '/customers/:id',
+  authenticate,
+  requirePermission('view_travel'),
+  authorizeCompany,
+  controller.getCustomerById,
+);
+
+router.put(
+  '/customers/:id',
+  authenticate,
+  requirePermission('manage_travel'),
+  authorizeCompany,
+  controller.updateCustomer,
+);
+
+router.delete(
+  '/customers/:id',
+  authenticate,
+  requirePermission('manage_travel'),
+  authorizeCompany,
+  controller.deleteCustomer,
+);
+
 // --- Bookings ---
 router.post(
   '/bookings',
@@ -61,6 +85,22 @@ router.get(
   controller.getBookingById,
 );
 
+router.put(
+  '/bookings/:id',
+  authenticate,
+  requirePermission('manage_travel'),
+  authorizeCompany,
+  controller.updateBooking,
+);
+
+router.delete(
+  '/bookings/:id',
+  authenticate,
+  requirePermission('manage_travel'),
+  authorizeCompany,
+  controller.deleteBooking,
+);
+
 // --- Proposals ---
 router.post(
   '/proposals',
@@ -79,6 +119,14 @@ router.get(
   controller.listProposals,
 );
 
+router.get(
+  '/proposals/:id',
+  authenticate,
+  requirePermission('view_travel'),
+  authorizeCompany,
+  controller.getProposalById,
+);
+
 router.put(
   '/proposals/:id/status',
   authenticate,
@@ -88,6 +136,14 @@ router.put(
   controller.updateProposalStatus,
 );
 
+router.delete(
+  '/proposals/:id',
+  authenticate,
+  requirePermission('manage_travel'),
+  authorizeCompany,
+  controller.deleteProposal,
+);
+
 // --- Invoices & Payments ---
 router.get(
   '/invoices',
@@ -95,6 +151,30 @@ router.get(
   requirePermission('view_travel'),
   authorizeCompany,
   controller.listInvoices,
+);
+
+router.get(
+  '/invoices/:id',
+  authenticate,
+  requirePermission('view_travel'),
+  authorizeCompany,
+  controller.getInvoiceById,
+);
+
+router.post(
+  '/invoices',
+  authenticate,
+  requirePermission('manage_travel'),
+  authorizeCompany,
+  controller.createInvoice,
+);
+
+router.delete(
+  '/invoices/:id',
+  authenticate,
+  requirePermission('manage_travel'),
+  authorizeCompany,
+  controller.deleteInvoice,
 );
 
 router.post(
@@ -107,3 +187,4 @@ router.post(
 );
 
 export default router;
+

@@ -12,8 +12,12 @@ const options: swaggerJsdoc.Options = {
     },
     servers: [
       {
+        url: `http://localhost:${config.PORT}/v1`,
+        description: 'Skyfall v1 Base URL',
+      },
+      {
         url: `http://localhost:${config.PORT}/api/v1`,
-        description: 'Development server',
+        description: 'API v1 Base URL',
       },
     ],
     components: {
@@ -42,7 +46,12 @@ const options: swaggerJsdoc.Options = {
       },
     },
   },
-  apis: ['./src/modules/**/presentation/*.routes.ts', './src/routes/*.ts'],
+  apis: [
+    './src/modules/**/presentation/routes/*.routes.ts',
+    './src/modules/**/presentation/*.routes.ts',
+    './src/routes/*.ts',
+  ],
 };
 
 export const swaggerSpec = swaggerJsdoc(options);
+

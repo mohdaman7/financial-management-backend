@@ -30,7 +30,11 @@ export class TravelRepository {
     id: string,
     data: Partial<ITravelCustomer>,
   ): Promise<ITravelCustomer | null> {
-    return TravelCustomerModel.findByIdAndUpdate(id, data, { new: true }).exec();
+    return TravelCustomerModel.findByIdAndUpdate(id, data, { returnDocument: 'after' }).exec();
+  }
+
+  async deleteCustomer(id: string): Promise<ITravelCustomer | null> {
+    return TravelCustomerModel.findByIdAndDelete(id).exec();
   }
 
   // --- Bookings ---
@@ -55,9 +59,13 @@ export class TravelRepository {
   }
 
   async updateBooking(id: string, data: Partial<ITravelBooking>): Promise<ITravelBooking | null> {
-    return TravelBookingModel.findByIdAndUpdate(id, data, { new: true })
+    return TravelBookingModel.findByIdAndUpdate(id, data, { returnDocument: 'after' })
       .populate('customerId')
       .exec();
+  }
+
+  async deleteBooking(id: string): Promise<ITravelBooking | null> {
+    return TravelBookingModel.findByIdAndDelete(id).exec();
   }
 
   // --- Proposals ---
@@ -80,7 +88,11 @@ export class TravelRepository {
     id: string,
     data: Partial<ITravelProposal>,
   ): Promise<ITravelProposal | null> {
-    return TravelProposalModel.findByIdAndUpdate(id, data, { new: true }).exec();
+    return TravelProposalModel.findByIdAndUpdate(id, data, { returnDocument: 'after' }).exec();
+  }
+
+  async deleteProposal(id: string): Promise<ITravelProposal | null> {
+    return TravelProposalModel.findByIdAndDelete(id).exec();
   }
 
   // --- Invoices ---
@@ -100,6 +112,11 @@ export class TravelRepository {
   }
 
   async updateInvoice(id: string, data: Partial<ITravelInvoice>): Promise<ITravelInvoice | null> {
-    return TravelInvoiceModel.findByIdAndUpdate(id, data, { new: true }).exec();
+    return TravelInvoiceModel.findByIdAndUpdate(id, data, { returnDocument: 'after' }).exec();
+  }
+
+  async deleteInvoice(id: string): Promise<ITravelInvoice | null> {
+    return TravelInvoiceModel.findByIdAndDelete(id).exec();
   }
 }
+
