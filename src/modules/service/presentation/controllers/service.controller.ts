@@ -37,17 +37,20 @@ export class ServiceController {
 
   list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { category, status, priority, search, page, limit } = req.query;
+      const { category, sub_category, subCategory, status, priority, search, page, limit } = req.query;
       const companyId = req.companyId as string | undefined;
+
+      const subCat = (sub_category || subCategory) ? String(sub_category || subCategory) : undefined;
 
       const result = await this.getServiceService().listServices({
         category: category ? String(category) : undefined,
+        sub_category: subCat,
         status: status ? String(status) : undefined,
         priority: priority ? String(priority) : undefined,
         search: search ? String(search) : undefined,
         companyId,
         page: page ? Number(page) : 1,
-        limit: limit ? Number(limit) : 20,
+        limit: limit ? Number(limit) : 100,
       });
 
       const data = result.services.map((s) => (s.toJSON ? s.toJSON() : s));
