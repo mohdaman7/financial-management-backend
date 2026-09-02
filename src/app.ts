@@ -72,9 +72,12 @@ export function createApp(): Application {
   }
 
   app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
   app.use(auditLogger());
   app.use('/api/v1', routes);
   app.use('/v1', routes);
+  app.use('/api', routes);
+  app.use('/', routes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

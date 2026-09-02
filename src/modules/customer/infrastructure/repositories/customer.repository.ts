@@ -27,8 +27,17 @@ export class CustomerRepository {
   ): Promise<{ customers: ICustomer[]; total: number; page: number; limit: number }> {
     const query: any = {};
 
-    if (companyId) {
-      query.$or = [{ companyId: new Types.ObjectId(companyId) }, { companyId: null }];
+    if (
+      companyId &&
+      companyId !== '000000000000000000000000' &&
+      companyId !== 'all' &&
+      Types.ObjectId.isValid(companyId)
+    ) {
+      query.$or = [
+        { companyId: new Types.ObjectId(companyId) },
+        { companyId: null },
+        { companyId: { $exists: false } },
+      ];
     }
 
     if (filters.status && filters.status !== 'all') {
@@ -73,8 +82,17 @@ export class CustomerRepository {
   async findById(id: string, companyId?: string): Promise<ICustomer | null> {
     if (!Types.ObjectId.isValid(id)) return null;
     const query: any = { _id: new Types.ObjectId(id) };
-    if (companyId && Types.ObjectId.isValid(companyId)) {
-      query.$or = [{ companyId: new Types.ObjectId(companyId) }, { companyId: null }];
+    if (
+      companyId &&
+      companyId !== '000000000000000000000000' &&
+      companyId !== 'all' &&
+      Types.ObjectId.isValid(companyId)
+    ) {
+      query.$or = [
+        { companyId: new Types.ObjectId(companyId) },
+        { companyId: null },
+        { companyId: { $exists: false } },
+      ];
     }
     return CustomerModel.findOne(query).exec();
   }
@@ -82,8 +100,17 @@ export class CustomerRepository {
   async findByEmail(companyId: string, email: string): Promise<ICustomer | null> {
     if (!email) return null;
     const query: any = { email: email.toLowerCase().trim() };
-    if (companyId) {
-      query.$or = [{ companyId: new Types.ObjectId(companyId) }, { companyId: null }];
+    if (
+      companyId &&
+      companyId !== '000000000000000000000000' &&
+      companyId !== 'all' &&
+      Types.ObjectId.isValid(companyId)
+    ) {
+      query.$or = [
+        { companyId: new Types.ObjectId(companyId) },
+        { companyId: null },
+        { companyId: { $exists: false } },
+      ];
     }
     return CustomerModel.findOne(query).exec();
   }

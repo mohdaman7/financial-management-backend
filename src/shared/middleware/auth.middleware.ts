@@ -77,7 +77,18 @@ export function authorizeCompany(req: Request, _res: Response, next: NextFunctio
 
   if (user.isSuperAdmin) {
     // Super Admin can access any company. Use their currently selected company context
-    req.companyId = req.headers['x-company-id']?.toString() || user.companyId;
+    const requestedCompanyId = req.headers['x-company-id']?.toString() || user.companyId;
+    if (
+      requestedCompanyId &&
+      requestedCompanyId !== '000000000000000000000000' &&
+      requestedCompanyId !== 'all' &&
+      requestedCompanyId !== 'null' &&
+      requestedCompanyId !== 'undefined'
+    ) {
+      req.companyId = requestedCompanyId;
+    } else {
+      req.companyId = undefined;
+    }
     next();
     return;
   }

@@ -22,8 +22,12 @@ export interface CreateCustomerDTO {
   nationality?: string;
   country?: string;
   company_name?: string;
+  companyId?: string;
+  company_id?: string;
   assigned_employee_id?: string;
   assigned_agent?: string;
+  assignedEmployee?: string;
+  assigned_agent_id?: string;
   lead_source?: string;
   status?: string;
   priority?: string;
@@ -33,6 +37,11 @@ export interface CreateCustomerDTO {
   internal_notes?: string;
   opening_balance?: number;
   created_by?: string;
+  address?: string;
+  passportDetails?: {
+    passportNumber?: string;
+    expiryDate?: Date;
+  };
 }
 
 export class CustomerService {
@@ -67,14 +76,26 @@ export class CustomerService {
     data: CreateCustomerDTO,
     performedBy = 'System',
   ): Promise<ICustomer> {
+    const rawCompanyId = companyId || data.companyId || data.company_id;
+    const effectiveCompanyId =
+      rawCompanyId &&
+      rawCompanyId !== '000000000000000000000000' &&
+      rawCompanyId !== 'all' &&
+      Types.ObjectId.isValid(rawCompanyId)
+        ? new Types.ObjectId(rawCompanyId)
+        : undefined;
+
+    const rawEmpId =
+      data.assigned_employee_id || data.assignedEmployee || data.assigned_agent_id;
+    const assignedEmployeeId =
+      rawEmpId && Types.ObjectId.isValid(rawEmpId) ? new Types.ObjectId(rawEmpId) : undefined;
+
+    const { assignedEmployee, ...restData } = data;
     const customerPayload: Partial<ICustomer> = {
-      ...data,
-      companyId:
-        companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined,
-      assigned_employee_id:
-        data.assigned_employee_id && Types.ObjectId.isValid(data.assigned_employee_id)
-          ? new Types.ObjectId(data.assigned_employee_id)
-          : undefined,
+      ...restData,
+      companyId: effectiveCompanyId,
+      assigned_employee_id: assignedEmployeeId,
+      assignedEmployee: assignedEmployeeId,
       status: data.status || 'lead',
       priority: data.priority || 'normal',
       tags: Array.isArray(data.tags) ? data.tags : [],
@@ -102,11 +123,13 @@ export class CustomerService {
   ): Promise<ICustomer> {
     const existing = await this.getCustomerById(id, companyId);
 
-    const updatePayload: any = { ...data };
-    if (data.assigned_employee_id) {
-      if (Types.ObjectId.isValid(data.assigned_employee_id)) {
-        updatePayload.assigned_employee_id = new Types.ObjectId(data.assigned_employee_id);
-      }
+    const { assignedEmployee, ...restData } = data;
+    const updatePayload: any = { ...restData };
+    const empId =
+      data.assigned_employee_id || data.assignedEmployee || data.assigned_agent_id;
+    if (empId && Types.ObjectId.isValid(empId)) {
+      updatePayload.assigned_employee_id = new Types.ObjectId(empId);
+      updatePayload.assignedEmployee = new Types.ObjectId(empId);
     }
 
     const updated = await this.customerRepository.update(id, updatePayload);
