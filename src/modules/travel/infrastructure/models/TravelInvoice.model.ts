@@ -8,6 +8,7 @@ export interface ITravelPayment {
 
 export interface ITravelInvoice extends Document {
   companyId: Types.ObjectId;
+  customerId?: Types.ObjectId;
   bookingId: Types.ObjectId;
   invoiceNumber: string;
   amount: number;
@@ -21,6 +22,7 @@ export interface ITravelInvoice extends Document {
 const TravelInvoiceSchema = new Schema<ITravelInvoice>(
   {
     companyId: { type: Schema.Types.ObjectId, ref: 'Company', required: true },
+    customerId: { type: Schema.Types.ObjectId, ref: 'Customer', default: null },
     bookingId: { type: Schema.Types.ObjectId, ref: 'TravelBooking', required: true },
     invoiceNumber: { type: String, required: true, unique: true, trim: true },
     amount: { type: Number, required: true, min: 0 },

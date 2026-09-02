@@ -41,7 +41,8 @@ export class CustomerController {
   getCustomerById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const id = req.params.id as string;
-      const customer = await this.getCustomerService().getCustomerById(id);
+      const companyId = req.user?.isSuperAdmin ? undefined : (req.companyId as string | undefined);
+      const customer = await this.getCustomerService().getCustomerById(id, companyId);
       res.status(200).json(ResponseFormatter.success(customer));
     } catch (error) {
       next(error);
@@ -72,9 +73,15 @@ export class CustomerController {
   updateCustomer = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const id = req.params.id as string;
+      const companyId = req.user?.isSuperAdmin ? undefined : (req.companyId as string | undefined);
       const performedBy = (req.user as any)?.name || req.user?.email || 'System';
 
-      const customer = await this.getCustomerService().updateCustomer(id, req.body, performedBy);
+      const customer = await this.getCustomerService().updateCustomer(
+        id,
+        req.body,
+        performedBy,
+        companyId,
+      );
 
       res.status(200).json({
         success: true,
@@ -89,7 +96,8 @@ export class CustomerController {
   deleteCustomer = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const id = req.params.id as string;
-      await this.getCustomerService().deleteCustomer(id);
+      const companyId = req.user?.isSuperAdmin ? undefined : (req.companyId as string | undefined);
+      await this.getCustomerService().deleteCustomer(id, companyId);
 
       res.status(200).json({
         success: true,
@@ -103,7 +111,8 @@ export class CustomerController {
   listDocuments = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const id = req.params.id as string;
-      const documents = await this.getCustomerService().listDocuments(id);
+      const companyId = req.user?.isSuperAdmin ? undefined : (req.companyId as string | undefined);
+      const documents = await this.getCustomerService().listDocuments(id, companyId);
       res.status(200).json(ResponseFormatter.success(documents));
     } catch (error) {
       next(error);
@@ -113,6 +122,7 @@ export class CustomerController {
   uploadDocument = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const customerId = req.params.id as string;
+      const companyId = req.user?.isSuperAdmin ? undefined : (req.companyId as string | undefined);
       const performedBy = (req.user as any)?.name || req.user?.email || 'System';
 
       if (!req.file) {
@@ -156,6 +166,7 @@ export class CustomerController {
               status: 'verified',
             },
             performedBy,
+            companyId,
           );
 
           res.status(201).json({
@@ -180,9 +191,10 @@ export class CustomerController {
     try {
       const customerId = req.params.id as string;
       const docId = req.params.docId as string;
+      const companyId = req.user?.isSuperAdmin ? undefined : (req.companyId as string | undefined);
       const performedBy = (req.user as any)?.name || req.user?.email || 'System';
 
-      await this.getCustomerService().deleteDocument(customerId, docId, performedBy);
+      await this.getCustomerService().deleteDocument(customerId, docId, performedBy, companyId);
 
       res.status(200).json({
         success: true,
@@ -196,7 +208,8 @@ export class CustomerController {
   getActivityLog = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const id = req.params.id as string;
-      const activityLog = await this.getCustomerService().getActivityLog(id);
+      const companyId = req.user?.isSuperAdmin ? undefined : (req.companyId as string | undefined);
+      const activityLog = await this.getCustomerService().getActivityLog(id, companyId);
       res.status(200).json(ResponseFormatter.success(activityLog));
     } catch (error) {
       next(error);

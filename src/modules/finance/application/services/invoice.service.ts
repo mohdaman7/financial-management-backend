@@ -13,6 +13,7 @@ import {
 } from '../../infrastructure/models/Invoice.model';
 import { AppError } from '@shared/errors/AppError';
 import { PdfGenerator } from '@shared/utils/pdfGenerator';
+import { CurrencyPrecision } from '@shared/utils/currencyPrecision';
 
 export interface CreateInvoiceDTO {
   invoice_type?: 'standard' | 'statement';
@@ -112,12 +113,12 @@ export class InvoiceService {
       const rate = item.rate !== undefined ? Number(item.rate) : 0;
       const disc = Number(item.disc) || 0;
       const tax = item.tax !== undefined ? Number(item.tax) : 0;
-      const netAmount = Math.round((qty * rate - disc) * 100) / 100;
+      const netAmount = CurrencyPrecision.round(qty * rate - disc);
       const govCost = Number(item.govCost) || 0;
       const suplFee = Number(item.suplFee) || 0;
-      const totCost = Math.round((govCost + suplFee) * 100) / 100;
+      const totCost = CurrencyPrecision.round(govCost + suplFee);
       const proComm = Number(item.proComm) || 0;
-      const netProfit = Math.round((netAmount - totCost - proComm) * 100) / 100;
+      const netProfit = CurrencyPrecision.round(netAmount - totCost - proComm);
 
       return {
         id: item.id || `tj-${index + 1}`,
@@ -145,17 +146,20 @@ export class InvoiceService {
       };
     });
 
-    let subtotal =
-      Math.round(computedItems.reduce((acc, it) => acc + (it.netAmount || 0), 0) * 100) / 100;
-    let vat =
-      Math.round(
-        computedItems.reduce((acc, it) => acc + ((it.netAmount || 0) * (it.tax || 0)) / 100, 0) *
-          100,
-      ) / 100;
+    let subtotal = CurrencyPrecision.round(
+      computedItems.reduce((acc, it) => acc + (it.netAmount || 0), 0),
+    );
+    let vat = CurrencyPrecision.round(
+      computedItems.reduce(
+        (acc, it) => acc + CurrencyPrecision.calculateVat(it.netAmount || 0, it.tax || 0),
+        0,
+      ),
+    );
 
-    const additions = Math.round(additionItems.reduce((acc, it) => acc + it.value, 0) * 100) / 100;
-    const deductions =
-      Math.round(deductionItems.reduce((acc, it) => acc + it.value, 0) * 100) / 100;
+    const additions = CurrencyPrecision.round(additionItems.reduce((acc, it) => acc + it.value, 0));
+    const deductions = CurrencyPrecision.round(
+      deductionItems.reduce((acc, it) => acc + it.value, 0),
+    );
 
     if (
       data.invoice_type === 'statement' &&
@@ -163,16 +167,14 @@ export class InvoiceService {
       statementEntries.length > 0
     ) {
       const debitTotal = statementEntries.reduce((acc, e) => acc + e.debit, 0);
-      subtotal = Math.round(debitTotal * 100) / 100;
+      subtotal = CurrencyPrecision.round(debitTotal);
       vat = 0;
     }
 
-    const grand_total = Math.round((subtotal + vat + additions - deductions) * 100) / 100;
-    const total_profit =
-      Math.round(
-        (computedItems.reduce((acc, it) => acc + (it.netProfit || 0), 0) + additions - deductions) *
-          100,
-      ) / 100;
+    const grand_total = CurrencyPrecision.round(subtotal + vat + additions - deductions);
+    const total_profit = CurrencyPrecision.round(
+      computedItems.reduce((acc, it) => acc + (it.netProfit || 0), 0) + additions - deductions,
+    );
 
     let paid_amount = 0;
     if (data.paid_amount !== undefined) {

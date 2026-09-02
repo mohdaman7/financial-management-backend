@@ -51,6 +51,7 @@ export interface ICustomer extends Document {
   notes?: string;
   internal_notes?: string;
   total_spent: number;
+  opening_balance?: number;
   created_by?: string;
   documents: ICustomerDocument[];
   activity_log: ICustomerActivityLog[];
@@ -174,6 +175,7 @@ const CustomerSchema = new Schema<ICustomer>(
     notes: { type: String, trim: true, default: '' },
     internal_notes: { type: String, trim: true, default: '' },
     total_spent: { type: Number, default: 0, min: 0 },
+    opening_balance: { type: Number, default: 0 },
     created_by: { type: String, trim: true, default: '' },
     documents: [CustomerDocumentSchema],
     activity_log: [CustomerActivityLogSchema],

@@ -31,6 +31,7 @@ export interface CreateCustomerDTO {
   tags?: string[];
   notes?: string;
   internal_notes?: string;
+  opening_balance?: number;
   created_by?: string;
 }
 
@@ -53,8 +54,8 @@ export class CustomerService {
     };
   }
 
-  async getCustomerById(id: string): Promise<ICustomer> {
-    const customer = await this.customerRepository.findById(id);
+  async getCustomerById(id: string, companyId?: string): Promise<ICustomer> {
+    const customer = await this.customerRepository.findById(id, companyId);
     if (!customer) {
       throw AppError.notFound('Customer not found');
     }
@@ -78,6 +79,7 @@ export class CustomerService {
       priority: data.priority || 'normal',
       tags: Array.isArray(data.tags) ? data.tags : [],
       total_spent: 0,
+      opening_balance: Number(data.opening_balance) || 0,
       documents: [],
       activity_log: [
         {
@@ -96,8 +98,9 @@ export class CustomerService {
     id: string,
     data: Partial<CreateCustomerDTO>,
     performedBy = 'System',
+    companyId?: string,
   ): Promise<ICustomer> {
-    const existing = await this.getCustomerById(id);
+    const existing = await this.getCustomerById(id, companyId);
 
     const updatePayload: any = { ...data };
     if (data.assigned_employee_id) {
@@ -128,19 +131,19 @@ export class CustomerService {
       });
     }
 
-    return this.getCustomerById(id);
+    return this.getCustomerById(id, companyId);
   }
 
-  async deleteCustomer(id: string): Promise<void> {
-    const existing = await this.customerRepository.findById(id);
+  async deleteCustomer(id: string, companyId?: string): Promise<void> {
+    const existing = await this.getCustomerById(id, companyId);
     if (!existing) {
       throw AppError.notFound('Customer not found');
     }
     await this.customerRepository.delete(id);
   }
 
-  async listDocuments(customerId: string): Promise<ICustomerDocument[]> {
-    const customer = await this.getCustomerById(customerId);
+  async listDocuments(customerId: string, companyId?: string): Promise<ICustomerDocument[]> {
+    const customer = await this.getCustomerById(customerId, companyId);
     return customer.documents || [];
   }
 
@@ -155,8 +158,9 @@ export class CustomerService {
       status?: string;
     },
     performedBy = 'System',
+    companyId?: string,
   ): Promise<ICustomerDocument> {
-    await this.getCustomerById(customerId);
+    await this.getCustomerById(customerId, companyId);
 
     const docObj: ICustomerDocument = {
       name: document.name,
@@ -188,8 +192,9 @@ export class CustomerService {
     customerId: string,
     documentId: string,
     performedBy = 'System',
+    companyId?: string,
   ): Promise<void> {
-    const customer = await this.getCustomerById(customerId);
+    const customer = await this.getCustomerById(customerId, companyId);
     const docToDelete = customer.documents.find(
       (d: any) => d._id?.toString() === documentId || d.id === documentId,
     );
@@ -218,8 +223,8 @@ export class CustomerService {
     });
   }
 
-  async getActivityLog(customerId: string): Promise<ICustomerActivityLog[]> {
-    const customer = await this.getCustomerById(customerId);
+  async getActivityLog(customerId: string, companyId?: string): Promise<ICustomerActivityLog[]> {
+    const customer = await this.getCustomerById(customerId, companyId);
     const logs = customer.activity_log || [];
     return [...logs].reverse();
   }

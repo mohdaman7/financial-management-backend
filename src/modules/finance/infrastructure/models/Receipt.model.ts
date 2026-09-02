@@ -22,6 +22,7 @@ export interface IReceipt extends Document {
   received_by?: string;
   status: 'Received' | 'Pending' | 'Cancelled' | string;
   allocations: IReceiptAllocation[];
+  unallocated_amount?: number;
   createdAt: Date;
   updatedAt: Date;
   created_at?: string;
@@ -63,6 +64,7 @@ const ReceiptSchema = new Schema<IReceipt>(
       default: 'Received',
     },
     allocations: [ReceiptAllocationSchema],
+    unallocated_amount: { type: Number, default: 0 },
   },
   {
     timestamps: true,

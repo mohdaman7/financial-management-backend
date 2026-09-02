@@ -38,7 +38,8 @@ export class ProposalController {
   getProposalById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const id = req.params.id as string;
-      const proposal = await this.getProposalService().getProposalById(id);
+      const companyId = req.user?.isSuperAdmin ? undefined : (req.companyId as string | undefined);
+      const proposal = await this.getProposalService().getProposalById(id, companyId);
       const formatted = this.getProposalService().formatQuotationDetail(proposal);
 
       res.status(200).json({

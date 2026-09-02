@@ -9,6 +9,7 @@ import { AppError } from '@shared/errors/AppError';
 import { EmailService } from '@shared/services/email.service';
 import { PdfGenerator } from '@shared/utils/pdfGenerator';
 import { formatQuotationWords } from '@shared/utils/numberToWords';
+import { CurrencyPrecision } from '@shared/utils/currencyPrecision';
 
 export interface CreateProposalDTO {
   quote_ref?: string;
@@ -72,11 +73,10 @@ export class ProposalService {
     balance_amount: number;
     amount_in_words: string;
   } {
-    const subtotal = items.reduce(
-      (sum, item) => sum + (Number(item.rate) || 0) * (Number(item.qty) || 0),
-      0,
+    const subtotal = CurrencyPrecision.round(
+      items.reduce((sum, item) => sum + (Number(item.rate) || 0) * (Number(item.qty) || 0), 0),
     );
-    const clampedDiscount = Math.min(subtotal, Math.max(0, discountAmount || 0));
+    const clampedDiscount = CurrencyPrecision.clampDiscount(subtotal, discountAmount);
     const taxableAmount = Math.max(0, subtotal - clampedDiscount);
 
     let totalTax = 0;
@@ -84,25 +84,22 @@ export class ProposalService {
       totalTax = items.reduce((sum, item) => {
         const lineTotal = (Number(item.rate) || 0) * (Number(item.qty) || 0);
         const propShare = (lineTotal / subtotal) * clampedDiscount;
-        const itemTaxable = Math.max(0, lineTotal - propShare);
         const taxRate = item.tax !== undefined ? Number(item.tax) : 5;
-        return sum + (itemTaxable * taxRate) / 100;
+        return sum + CurrencyPrecision.calculateLineItemVat(lineTotal, 1, propShare, taxRate);
       }, 0);
     }
 
-    const roundedSubtotal = Math.round(subtotal * 100) / 100;
-    const roundedDiscount = Math.round(clampedDiscount * 100) / 100;
-    const roundedTax = Math.round(totalTax * 100) / 100;
-    const grandTotal = Math.round((taxableAmount + roundedTax) * 100) / 100;
-    const balanceAmount = Math.round((grandTotal - (paidAmount || 0)) * 100) / 100;
+    const roundedTax = CurrencyPrecision.round(totalTax);
+    const grandTotal = CurrencyPrecision.round(taxableAmount + roundedTax);
+    const balanceAmount = CurrencyPrecision.round(grandTotal - (paidAmount || 0));
     const amountInWords = formatQuotationWords(grandTotal);
 
     return {
-      subtotal: roundedSubtotal,
-      discount_amount: roundedDiscount,
+      subtotal,
+      discount_amount: clampedDiscount,
       total_tax: roundedTax,
       grand_total: grandTotal,
-      paid_amount: Math.round((paidAmount || 0) * 100) / 100,
+      paid_amount: CurrencyPrecision.round(paidAmount || 0),
       balance_amount: balanceAmount,
       amount_in_words: amountInWords,
     };
@@ -249,17 +246,27 @@ export class ProposalService {
     };
   }
 
-  async getProposalById(id: string): Promise<ITravelProposal> {
+  async getProposalById(id: string, companyId?: string): Promise<ITravelProposal> {
     if (!id) {
       throw AppError.notFound(`Quotation '${id}' not found`, 'QUOTATION_NOT_FOUND');
     }
 
-    let proposal = await TravelProposalModel.findOne({
+    const query: any = {
       $or: [{ custom_id: id }, { quoteRef: id }, { title: id }],
-    }).exec();
+    };
+
+    if (companyId && Types.ObjectId.isValid(companyId)) {
+      query.companyId = { $in: [new Types.ObjectId(companyId), null] };
+    }
+
+    let proposal = await TravelProposalModel.findOne(query).exec();
 
     if (!proposal && Types.ObjectId.isValid(id)) {
-      proposal = await TravelProposalModel.findById(id).exec();
+      const byIdQuery: any = { _id: new Types.ObjectId(id) };
+      if (companyId && Types.ObjectId.isValid(companyId)) {
+        byIdQuery.companyId = { $in: [new Types.ObjectId(companyId), null] };
+      }
+      proposal = await TravelProposalModel.findOne(byIdQuery).exec();
     }
 
     if (!proposal) {

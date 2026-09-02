@@ -70,9 +70,13 @@ export class CustomerRepository {
     return { customers, total, page, limit };
   }
 
-  async findById(id: string): Promise<ICustomer | null> {
+  async findById(id: string, companyId?: string): Promise<ICustomer | null> {
     if (!Types.ObjectId.isValid(id)) return null;
-    return CustomerModel.findById(id).exec();
+    const query: any = { _id: new Types.ObjectId(id) };
+    if (companyId && Types.ObjectId.isValid(companyId)) {
+      query.$or = [{ companyId: new Types.ObjectId(companyId) }, { companyId: null }];
+    }
+    return CustomerModel.findOne(query).exec();
   }
 
   async findByEmail(companyId: string, email: string): Promise<ICustomer | null> {

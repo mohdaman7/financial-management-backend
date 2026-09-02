@@ -10,6 +10,7 @@ import { TravelInvoiceModel } from '../../../travel/infrastructure/models/Travel
 import { CustomerModel } from '../../../customer/infrastructure/models/Customer.model';
 import { AppError } from '@shared/errors/AppError';
 import { PdfGenerator } from '@shared/utils/pdfGenerator';
+import { CurrencyPrecision } from '@shared/utils/currencyPrecision';
 
 export interface CreateReceiptDTO {
   invoiceId?: string;
@@ -66,15 +67,17 @@ export class ReceiptService {
     }
 
     const allocations: IReceiptAllocation[] = [];
-    let remainingAmount = data.amount;
+    let remainingAmount = CurrencyPrecision.round(data.amount);
 
-    // FIFO allocation: if specific invoiceId provided or search customer unpaid invoices
+    // 1. Single Specific Invoice Allocation
     if (data.invoiceId) {
       const invoice = await TravelInvoiceModel.findById(data.invoiceId).exec();
       if (invoice) {
-        const totalPaid = (invoice.payments || []).reduce((acc, p) => acc + p.amount, 0);
-        const due = Math.max(0, invoice.amount - totalPaid);
-        const allocated = Math.min(due, remainingAmount);
+        const totalPaid = CurrencyPrecision.round(
+          (invoice.payments || []).reduce((acc, p) => acc + (p.amount || 0), 0),
+        );
+        const due = CurrencyPrecision.round(Math.max(0, invoice.amount - totalPaid));
+        const allocated = CurrencyPrecision.round(Math.min(due, remainingAmount));
 
         invoice.payments.push({
           amount: allocated,
@@ -83,7 +86,7 @@ export class ReceiptService {
             (data.paymentMethod.toLowerCase().replace(' ', '_') as any) || 'bank_transfer',
         });
 
-        if (totalPaid + allocated >= invoice.amount) {
+        if (CurrencyPrecision.round(totalPaid + allocated) >= invoice.amount) {
           invoice.status = 'paid';
         }
 
@@ -92,10 +95,45 @@ export class ReceiptService {
         allocations.push({
           invoice_id: invoice.invoiceNumber || invoice._id.toString(),
           allocated_amount: allocated,
-          remaining_invoice_balance: Math.max(0, due - allocated),
+          remaining_invoice_balance: CurrencyPrecision.round(Math.max(0, due - allocated)),
         });
 
-        remainingAmount -= allocated;
+        remainingAmount = CurrencyPrecision.round(remainingAmount - allocated);
+      }
+    } else if (data.customerId || data.customerName) {
+      // 2. FIFO multi-invoice allocation for customer debts (oldest unpaid invoice first)
+      const query: any = { status: { $ne: 'paid' } };
+      if (companyId && Types.ObjectId.isValid(companyId)) {
+        query.companyId = new Types.ObjectId(companyId);
+      }
+      if (data.customerId && Types.ObjectId.isValid(data.customerId)) {
+        query.customerId = new Types.ObjectId(data.customerId);
+      }
+      const unpaidInvoices = await TravelInvoiceModel.find(query).sort({ createdAt: 1 }).exec();
+      for (const inv of unpaidInvoices) {
+        if (remainingAmount <= 0) break;
+        const totalPaid = CurrencyPrecision.round(
+          (inv.payments || []).reduce((acc, p) => acc + (p.amount || 0), 0),
+        );
+        const due = CurrencyPrecision.round(Math.max(0, inv.amount - totalPaid));
+        if (due <= 0) continue;
+        const allocated = CurrencyPrecision.round(Math.min(due, remainingAmount));
+        inv.payments.push({
+          amount: allocated,
+          date: new Date(),
+          paymentMethod:
+            (data.paymentMethod.toLowerCase().replace(' ', '_') as any) || 'bank_transfer',
+        });
+        if (CurrencyPrecision.round(totalPaid + allocated) >= inv.amount) {
+          inv.status = 'paid';
+        }
+        await inv.save();
+        allocations.push({
+          invoice_id: inv.invoiceNumber || inv._id.toString(),
+          allocated_amount: allocated,
+          remaining_invoice_balance: CurrencyPrecision.round(Math.max(0, due - allocated)),
+        });
+        remainingAmount = CurrencyPrecision.round(remainingAmount - allocated);
       }
     }
 
@@ -156,6 +194,7 @@ export class ReceiptService {
       received_by: data.received_by || receivedBy,
       status: data.status || 'Received',
       allocations,
+      unallocated_amount: remainingAmount,
     });
 
     return receipt;

@@ -48,6 +48,10 @@ export class DocumentController {
   download = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const fileId = req.params.fileId as string;
+      if (!Types.ObjectId.isValid(fileId)) {
+        throw AppError.badRequest('Invalid document ID');
+      }
+
       const bucket = getGridFSBucket();
       const objectId = new Types.ObjectId(fileId);
 
@@ -57,6 +61,21 @@ export class DocumentController {
       }
 
       const fileMetadata = files[0];
+      const fileCompanyId = fileMetadata.metadata?.companyId?.toString();
+
+      // Enforce strict multi-company tenant isolation
+      if (
+        !req.user?.isSuperAdmin &&
+        fileCompanyId &&
+        req.companyId &&
+        fileCompanyId !== req.companyId.toString()
+      ) {
+        throw AppError.forbidden(
+          'Access denied: Document belongs to another company context',
+          'CROSS_COMPANY_FORBIDDEN',
+        );
+      }
+
       const contentType = fileMetadata.metadata?.contentType || 'application/octet-stream';
       res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Disposition', `inline; filename="${fileMetadata.filename}"`);
@@ -75,8 +94,33 @@ export class DocumentController {
   delete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const fileId = req.params.fileId as string;
+      if (!Types.ObjectId.isValid(fileId)) {
+        throw AppError.badRequest('Invalid document ID');
+      }
+
       const bucket = getGridFSBucket();
       const objectId = new Types.ObjectId(fileId);
+
+      const files = await bucket.find({ _id: objectId }).toArray();
+      if (!files || files.length === 0) {
+        throw AppError.notFound('Document not found');
+      }
+
+      const fileMetadata = files[0];
+      const fileCompanyId = fileMetadata.metadata?.companyId?.toString();
+
+      // Enforce strict multi-company tenant isolation on deletion
+      if (
+        !req.user?.isSuperAdmin &&
+        fileCompanyId &&
+        req.companyId &&
+        fileCompanyId !== req.companyId.toString()
+      ) {
+        throw AppError.forbidden(
+          'Access denied: Document belongs to another company context',
+          'CROSS_COMPANY_FORBIDDEN',
+        );
+      }
 
       await bucket.delete(objectId);
       res.status(200).json(ResponseFormatter.success({ message: 'Document deleted successfully' }));
