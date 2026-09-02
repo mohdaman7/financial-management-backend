@@ -1,10 +1,12 @@
 import { Types } from 'mongoose';
 import { TransactionModel } from '../../infrastructure/models/Transaction.model';
+import { InvoiceModel } from '../../infrastructure/models/Invoice.model';
 import { TravelInvoiceModel } from '../../../travel/infrastructure/models/TravelInvoice.model';
 import { TravelBookingModel } from '../../../travel/infrastructure/models/TravelBooking.model';
 import { TravelProposalModel } from '../../../travel/infrastructure/models/TravelProposal.model';
 import { CustomerModel } from '../../../customer/infrastructure/models/Customer.model';
 import { ServiceModel } from '../../../service/infrastructure/models/Service.model';
+import { CurrencyPrecision } from '@shared/utils/currencyPrecision';
 
 export class ReportService {
   private buildDateFilter(startDate?: string, endDate?: string, dateField = 'createdAt'): any {
@@ -123,27 +125,48 @@ export class ReportService {
       limit?: number;
     } = {},
   ) {
-    const query: any = {};
+    const travelQuery: any = {};
+    const stdQuery: any = {};
     if (companyId && Types.ObjectId.isValid(companyId)) {
-      query.companyId = new Types.ObjectId(companyId);
+      travelQuery.companyId = new Types.ObjectId(companyId);
+      stdQuery.companyId = new Types.ObjectId(companyId);
     }
     if (filters.status && filters.status !== 'all') {
-      query.status = filters.status;
+      const s = filters.status.toLowerCase().trim();
+      if (s === 'paid') {
+        travelQuery.status = 'paid';
+        stdQuery.status = { $regex: /^paid$/i };
+      } else if (s === 'partially_paid' || s === 'partially paid' || s === 'partial') {
+        travelQuery.status = 'partially_paid';
+        stdQuery.status = { $regex: /^partially[\s_]paid$/i };
+      } else if (s === 'unpaid' || s === 'pending') {
+        travelQuery.status = { $in: ['unpaid', 'pending'] };
+        stdQuery.status = { $regex: /^(pending|unpaid)$/i };
+      } else {
+        travelQuery.status = filters.status;
+        stdQuery.status = { $regex: new RegExp(`^${filters.status}$`, 'i') };
+      }
     }
     if (filters.start_date || filters.end_date) {
-      Object.assign(query, this.buildDateFilter(filters.start_date, filters.end_date, 'createdAt'));
+      Object.assign(travelQuery, this.buildDateFilter(filters.start_date, filters.end_date, 'createdAt'));
+      Object.assign(stdQuery, this.buildDateFilter(filters.start_date, filters.end_date, 'createdAt'));
     }
 
-    const invoices = await TravelInvoiceModel.find(query)
-      .populate({ path: 'bookingId', populate: { path: 'customerId' } })
-      .sort({ createdAt: -1 })
-      .exec();
+    const [travelInvoices, stdInvoices] = await Promise.all([
+      TravelInvoiceModel.find(travelQuery)
+        .populate({ path: 'bookingId', populate: { path: 'customerId' } })
+        .sort({ createdAt: -1 })
+        .exec(),
+      InvoiceModel.find(stdQuery)
+        .sort({ createdAt: -1 })
+        .exec(),
+    ]);
 
-    const formatted = invoices.map((inv) => {
+    const formattedTravel = travelInvoices.map((inv) => {
       const booking = inv.bookingId as any;
       const customer = booking?.customerId as any;
-      const totalPaid = (inv.payments || []).reduce((acc, p) => acc + p.amount, 0);
-      const dueBalance = Math.max(0, inv.amount - totalPaid);
+      const totalPaid = (inv.payments || []).reduce((acc, p) => acc + (p.amount || 0), 0);
+      const dueBalance = Math.max(0, CurrencyPrecision.round(inv.amount - totalPaid));
       const subtotal = Math.round((inv.amount / 1.05) * 100) / 100;
       const vat = Math.round((inv.amount - subtotal) * 100) / 100;
 
@@ -171,24 +194,58 @@ export class ReportService {
       };
     });
 
+    const formattedStd = stdInvoices.map((inv) => {
+      const grandTotal = inv.grand_total || 0;
+      const paidAmount = inv.paid_amount || 0;
+      const dueBalance = inv.balance_amount !== undefined ? inv.balance_amount : Math.max(0, CurrencyPrecision.round(grandTotal - paidAmount));
+
+      let status = 'pending';
+      if (paidAmount >= grandTotal && grandTotal > 0) {
+        status = 'paid';
+      } else if (paidAmount > 0 && paidAmount < grandTotal) {
+        status = 'partially_paid';
+      } else if (inv.status && inv.status.toLowerCase() === 'paid') {
+        status = 'paid';
+      }
+
+      return {
+        id: inv.custom_id || inv._id.toString(),
+        invoice_number: inv.invoice_number,
+        customer_name: inv.customer_name || 'Customer',
+        customer_id: inv.customer_id?.toString() || '',
+        subtotal: inv.subtotal || 0,
+        vat: inv.vat || 0,
+        total_amount: grandTotal,
+        paid_amount: paidAmount,
+        due_balance: dueBalance,
+        due_date: inv.due_date || '',
+        status,
+        lead_owner: inv.lead_owner || inv.lead_by || 'Operations Staff',
+        created_at: inv.createdAt,
+      };
+    });
+
+    const allInvoices = [...formattedTravel, ...formattedStd];
+    allInvoices.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
     const page = Math.max(1, filters.page || 1);
     const limit = Math.max(1, filters.limit || 20);
-    const paginated = formatted.slice((page - 1) * limit, page * limit);
+    const paginated = allInvoices.slice((page - 1) * limit, page * limit);
 
-    const totalInvoiced = formatted.reduce((acc, i) => acc + i.total_amount, 0);
-    const totalPaid = formatted.reduce((acc, i) => acc + i.paid_amount, 0);
-    const totalDue = formatted.reduce((acc, i) => acc + i.due_balance, 0);
+    const totalInvoiced = allInvoices.reduce((acc, i) => acc + i.total_amount, 0);
+    const totalPaid = allInvoices.reduce((acc, i) => acc + i.paid_amount, 0);
+    const totalDue = allInvoices.reduce((acc, i) => acc + i.due_balance, 0);
 
     return {
       items: paginated,
       summary: {
-        total_invoices: formatted.length,
+        total_invoices: allInvoices.length,
         total_invoiced_amount: totalInvoiced,
         total_paid_amount: totalPaid,
         total_due_balance: totalDue,
       },
       meta: {
-        total: formatted.length,
+        total: allInvoices.length,
         page,
         limit,
       },
@@ -413,17 +470,29 @@ export class ReportService {
       query._id = new Types.ObjectId(filters.customer_id);
     }
 
-    const customers = await CustomerModel.find(query).exec();
-    const invoices = await TravelInvoiceModel.find().populate('bookingId').exec();
+    const [customers, travelInvoices, stdInvoices] = await Promise.all([
+      CustomerModel.find(query).exec(),
+      TravelInvoiceModel.find().populate('bookingId').exec(),
+      InvoiceModel.find().exec(),
+    ]);
 
     const customerSales = customers.map((c) => {
-      const custInvoices = invoices.filter((inv: any) => {
+      const cId = c._id.toString();
+      const custTravelInvoices = travelInvoices.filter((inv: any) => {
         const b = inv.bookingId as any;
-        return b?.customerId?.toString() === c._id.toString();
+        return b?.customerId?.toString() === cId;
+      });
+      const custStdInvoices = stdInvoices.filter((inv: any) => {
+        return (
+          inv.customer_id?.toString() === cId ||
+          (inv.customer_name && inv.customer_name.toLowerCase() === c.name.toLowerCase())
+        );
       });
 
-      const totalRevenue = custInvoices.reduce((acc, i) => acc + i.amount, 0) || c.total_spent || 0;
-      const invCount = custInvoices.length > 0 ? custInvoices.length : totalRevenue > 0 ? 1 : 0;
+      const travelRevenue = custTravelInvoices.reduce((acc, i) => acc + i.amount, 0);
+      const stdRevenue = custStdInvoices.reduce((acc, i) => acc + (i.grand_total || 0), 0);
+      const totalRevenue = travelRevenue + stdRevenue || c.total_spent || 0;
+      const invCount = custTravelInvoices.length + custStdInvoices.length || (totalRevenue > 0 ? 1 : 0);
       const avgValue = invCount > 0 ? Math.round(totalRevenue / invCount) : 0;
 
       return {
@@ -576,17 +645,27 @@ export class ReportService {
     companyId?: string,
     filters: { as_of_date?: string; customer_id?: string; min_overdue_days?: number } = {},
   ) {
-    const invoices = await TravelInvoiceModel.find({ status: { $ne: 'paid' } })
-      .populate({ path: 'bookingId', populate: { path: 'customerId' } })
-      .exec();
+    const travelQuery: any = { status: { $ne: 'paid' } };
+    const stdQuery: any = { status: { $nin: ['Paid', 'paid'] } };
+    if (companyId && Types.ObjectId.isValid(companyId)) {
+      travelQuery.companyId = new Types.ObjectId(companyId);
+      stdQuery.companyId = new Types.ObjectId(companyId);
+    }
+
+    const [travelInvoices, stdInvoices] = await Promise.all([
+      TravelInvoiceModel.find(travelQuery)
+        .populate({ path: 'bookingId', populate: { path: 'customerId' } })
+        .exec(),
+      InvoiceModel.find(stdQuery).exec(),
+    ]);
 
     const now = filters.as_of_date ? new Date(filters.as_of_date) : new Date();
 
-    const outstanding = invoices.map((inv) => {
+    const outstandingTravel = travelInvoices.map((inv) => {
       const booking = inv.bookingId as any;
       const customer = booking?.customerId as any;
-      const totalPaid = (inv.payments || []).reduce((acc, p) => acc + p.amount, 0);
-      const remainingBalance = Math.max(0, inv.amount - totalPaid);
+      const totalPaid = (inv.payments || []).reduce((acc, p) => acc + (p.amount || 0), 0);
+      const remainingBalance = Math.max(0, CurrencyPrecision.round(inv.amount - totalPaid));
 
       const dueDate = inv.dueDate || inv.createdAt;
       const diffTime = now.getTime() - new Date(dueDate).getTime();
@@ -603,13 +682,45 @@ export class ReportService {
         total_paid: totalPaid,
         remaining_balance: remainingBalance,
         overdue_days: overdueDays,
-        status: overdueDays > 0 ? 'Overdue' : 'Due Soon',
+        status: overdueDays > 0 ? 'Overdue' : totalPaid > 0 ? 'Partially Paid' : 'Due Soon',
       };
     });
 
+    const outstandingStd = stdInvoices.map((inv) => {
+      const grandTotal = inv.grand_total || 0;
+      const totalPaid = inv.paid_amount || 0;
+      const remainingBalance =
+        inv.balance_amount !== undefined
+          ? inv.balance_amount
+          : Math.max(0, CurrencyPrecision.round(grandTotal - totalPaid));
+
+      const issueDate = inv.issue_date ? new Date(inv.issue_date) : inv.createdAt;
+      const dueDate = inv.due_date ? new Date(inv.due_date) : issueDate;
+      const diffTime = now.getTime() - dueDate.getTime();
+      const overdueDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+
+      return {
+        invoice_id: inv.custom_id || inv._id.toString(),
+        invoice_number: inv.invoice_number,
+        customer_name: inv.customer_name || 'Customer',
+        customer_id: inv.customer_id?.toString() || '',
+        invoice_date: inv.issue_date || inv.createdAt.toISOString().split('T')[0],
+        due_date: inv.due_date || inv.createdAt.toISOString().split('T')[0],
+        original_amount: grandTotal,
+        total_paid: totalPaid,
+        remaining_balance: remainingBalance,
+        overdue_days: overdueDays,
+        status: overdueDays > 0 ? 'Overdue' : totalPaid > 0 ? 'Partially Paid' : 'Due Soon',
+      };
+    });
+
+    const allOutstanding = [...outstandingTravel, ...outstandingStd].filter(
+      (inv) => inv.remaining_balance > 0,
+    );
+
     const filtered = filters.min_overdue_days
-      ? outstanding.filter((i) => i.overdue_days >= filters.min_overdue_days!)
-      : outstanding;
+      ? allOutstanding.filter((i) => i.overdue_days >= filters.min_overdue_days!)
+      : allOutstanding;
 
     const totalOutstanding = filtered.reduce((acc, i) => acc + i.remaining_balance, 0);
 
@@ -634,19 +745,30 @@ export class ReportService {
       limit?: number;
     } = {},
   ) {
-    const invoices = await TravelInvoiceModel.find()
-      .populate({ path: 'bookingId', populate: { path: 'customerId' } })
-      .exec();
+    const travelQuery: any = {};
+    const stdQuery: any = {};
+    if (companyId && Types.ObjectId.isValid(companyId)) {
+      travelQuery.companyId = new Types.ObjectId(companyId);
+      stdQuery.companyId = new Types.ObjectId(companyId);
+    }
+
+    const [travelInvoices, stdInvoices] = await Promise.all([
+      TravelInvoiceModel.find(travelQuery)
+        .populate({ path: 'bookingId', populate: { path: 'customerId' } })
+        .exec(),
+      InvoiceModel.find(stdQuery).exec(),
+    ]);
 
     const ledgerEntries: any[] = [];
 
-    invoices.forEach((inv) => {
+    travelInvoices.forEach((inv) => {
       const booking = inv.bookingId as any;
       const customer = booking?.customerId as any;
+      const cId = customer?._id?.toString();
       if (
         !filters.customer_id ||
         filters.customer_id === 'all' ||
-        customer?._id?.toString() === filters.customer_id
+        cId === filters.customer_id
       ) {
         ledgerEntries.push({
           date: inv.createdAt.toISOString().split('T')[0],
@@ -669,6 +791,36 @@ export class ReportService {
             credit: p.amount,
           });
         });
+      }
+    });
+
+    stdInvoices.forEach((inv) => {
+      const cId = inv.customer_id?.toString();
+      if (
+        !filters.customer_id ||
+        filters.customer_id === 'all' ||
+        cId === filters.customer_id ||
+        inv.customer_name === filters.customer_id
+      ) {
+        ledgerEntries.push({
+          date: inv.issue_date || inv.createdAt.toISOString().split('T')[0],
+          type: 'INVOICE',
+          reference: inv.invoice_number,
+          description: `Invoice for ${inv.customer_name || 'Customer'}`,
+          debit: inv.grand_total,
+          credit: 0,
+        });
+
+        if (inv.paid_amount && inv.paid_amount > 0) {
+          ledgerEntries.push({
+            date: inv.issue_date || inv.createdAt.toISOString().split('T')[0],
+            type: 'RECEIPT',
+            reference: `PAY-${inv.invoice_number}`,
+            description: `Advance / Payment received`,
+            debit: 0,
+            credit: inv.paid_amount,
+          });
+        }
       }
     });
 

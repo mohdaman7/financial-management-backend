@@ -522,16 +522,31 @@ export class ProposalService {
     const year = new Date().getFullYear();
     const invoiceNumber = `INV-TRV-${year}-${String(Math.floor(1000 + Math.random() * 9000))}`;
 
+    const paidAmount = proposal.paid_amount || (proposal as any).paidAmount || 0;
+    const grandTotal = proposal.grandTotal || proposal.totalPrice || 0;
+    const payments: any[] = [];
+    if (paidAmount > 0) {
+      payments.push({
+        amount: paidAmount,
+        date: new Date(),
+        paymentMethod: 'cash',
+      });
+    }
+
+    const status: 'unpaid' | 'paid' | 'overdue' =
+      paidAmount >= grandTotal && grandTotal > 0 ? 'paid' : 'unpaid';
+
     const invoice = new TravelInvoiceModel({
       companyId:
         companyId && Types.ObjectId.isValid(companyId)
           ? new Types.ObjectId(companyId)
           : proposal.companyId || new Types.ObjectId(),
       bookingId: proposal.bookingId || new Types.ObjectId(),
+      customerId: proposal.customerId,
       invoiceNumber,
-      amount: proposal.grandTotal,
-      status: 'unpaid',
-      payments: [],
+      amount: grandTotal,
+      status,
+      payments,
       dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
 

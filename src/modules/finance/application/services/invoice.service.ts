@@ -16,6 +16,8 @@ import { PdfGenerator } from '@shared/utils/pdfGenerator';
 import { CurrencyPrecision } from '@shared/utils/currencyPrecision';
 
 export interface CreateInvoiceDTO {
+  invoice_number?: string;
+  invoiceNumber?: string;
   invoice_type?: 'standard' | 'statement';
   customer_id?: string;
   customer_name: string;
@@ -35,7 +37,19 @@ export interface CreateInvoiceDTO {
   remarks?: string;
   currency?: string;
   status?: string;
+  amount?: number;
+  total?: number;
+  grand_total?: number;
+  grandTotal?: number;
+  subtotal?: number;
+  vat?: number;
   paid_amount?: number;
+  paidAmount?: number;
+  advance_amount?: number;
+  advanceAmount?: number;
+  advance?: number;
+  balance_amount?: number;
+  balanceAmount?: number;
 
   items?: Array<{
     id?: string;
@@ -171,29 +185,68 @@ export class InvoiceService {
       vat = 0;
     }
 
-    const grand_total = CurrencyPrecision.round(subtotal + vat + additions - deductions);
+    if (subtotal === 0 && computedItems.length === 0 && statementEntries.length === 0) {
+      if (data.subtotal !== undefined) subtotal = Number(data.subtotal) || 0;
+      if (data.vat !== undefined) vat = Number(data.vat) || 0;
+    }
+
+    let grand_total = CurrencyPrecision.round(subtotal + vat + additions - deductions);
+    if (grand_total === 0 && (data.grand_total || data.grandTotal || data.total || data.amount)) {
+      grand_total = CurrencyPrecision.round(
+        Number(data.grand_total ?? data.grandTotal ?? data.total ?? data.amount ?? 0),
+      );
+    }
+
     const total_profit = CurrencyPrecision.round(
       computedItems.reduce((acc, it) => acc + (it.netProfit || 0), 0) + additions - deductions,
     );
 
     let paid_amount = 0;
-    if (data.paid_amount !== undefined) {
-      paid_amount = Number(data.paid_amount) || 0;
-    } else if (data.status === 'Paid' || (!data.status && data.payment_terms === 'CASH')) {
+    const explicitPaid =
+      data.paid_amount !== undefined && data.paid_amount !== null
+        ? Number(data.paid_amount)
+        : data.paidAmount !== undefined && data.paidAmount !== null
+          ? Number(data.paidAmount)
+          : data.advance_amount !== undefined && data.advance_amount !== null
+            ? Number(data.advance_amount)
+            : data.advanceAmount !== undefined && data.advanceAmount !== null
+              ? Number(data.advanceAmount)
+              : data.advance !== undefined && data.advance !== null
+                ? Number(data.advance)
+                : undefined;
+
+    if (explicitPaid !== undefined && !isNaN(explicitPaid)) {
+      paid_amount = explicitPaid;
+    } else if (
+      (data.status === 'Paid' || data.status === 'paid') &&
+      data.payment_terms !== 'CREDIT' &&
+      data.payment_terms !== 'PARTIAL'
+    ) {
+      paid_amount = grand_total;
+    } else if (!data.status && data.payment_terms === 'CASH') {
       paid_amount = grand_total;
     }
 
-    const balance_amount = Math.round((grand_total - paid_amount) * 100) / 100;
+    paid_amount = CurrencyPrecision.round(paid_amount);
+
+    let balance_amount =
+      data.balance_amount !== undefined && data.balance_amount !== null && !isNaN(Number(data.balance_amount)) && explicitPaid === undefined
+        ? Number(data.balance_amount)
+        : data.balanceAmount !== undefined && data.balanceAmount !== null && !isNaN(Number(data.balanceAmount)) && explicitPaid === undefined
+          ? Number(data.balanceAmount)
+          : Math.max(0, CurrencyPrecision.round(grand_total - paid_amount));
+
+    if (paid_amount > 0 && paid_amount < grand_total) {
+      balance_amount = Math.max(0, CurrencyPrecision.round(grand_total - paid_amount));
+    }
 
     let status = data.status;
-    if (!status) {
-      if (paid_amount >= grand_total && grand_total > 0) {
-        status = 'Paid';
-      } else if (paid_amount > 0 && paid_amount < grand_total) {
-        status = 'Partially Paid';
-      } else if (data.payment_terms === 'CASH') {
-        status = 'Paid';
-      } else {
+    if (paid_amount >= grand_total && grand_total > 0) {
+      status = 'Paid';
+    } else if (paid_amount > 0 && paid_amount < grand_total) {
+      status = 'Partially Paid';
+    } else if (paid_amount === 0) {
+      if (!status || status.toLowerCase() === 'paid' || status.toLowerCase() === 'partially paid' || status.toLowerCase() === 'partially_paid') {
         status = 'Pending';
       }
     }
@@ -251,7 +304,7 @@ export class InvoiceService {
     }
 
     const count = await this.invoiceRepository.count(companyId);
-    const invoiceNumber = (18500 + count + 1).toString();
+    const invoiceNumber = data.invoice_number || (data as any).invoiceNumber || (18500 + count + 1).toString();
     const customId = `inv-tajweed-${invoiceNumber}`;
 
     const financials = this.calculateFinancials(data);
@@ -400,7 +453,14 @@ export class InvoiceService {
       remarks: data.remarks ?? existing.remarks,
       currency: data.currency ?? existing.currency,
       status: data.status ?? existing.status,
-      paid_amount: data.paid_amount ?? existing.paid_amount,
+      paid_amount:
+        data.paid_amount ??
+        (data as any).paidAmount ??
+        (data as any).advance_amount ??
+        (data as any).advanceAmount ??
+        (data as any).advance ??
+        existing.paid_amount,
+      balance_amount: data.balance_amount ?? (data as any).balanceAmount ?? existing.balance_amount,
       items: data.items ?? (existing.items as any),
       addition_items: data.addition_items ?? (existing.addition_items as any),
       deduction_items: data.deduction_items ?? (existing.deduction_items as any),

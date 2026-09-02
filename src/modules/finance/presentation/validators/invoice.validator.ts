@@ -40,6 +40,8 @@ const statementEntrySchema = z.object({
 });
 
 export const createInvoiceSchema = z.object({
+  invoice_number: z.string().optional(),
+  invoiceNumber: z.string().optional(),
   invoice_type: z.enum(['standard', 'statement']).optional().default('standard'),
   customer_id: z.string().optional(),
   customer_name: z.string().min(1, "Field 'customer_name' is required when creating an invoice."),
@@ -59,7 +61,19 @@ export const createInvoiceSchema = z.object({
   remarks: z.string().optional(),
   currency: z.string().optional().default('AED'),
   status: z.string().optional(),
+  amount: z.number().optional(),
+  total: z.number().optional(),
+  grand_total: z.number().optional(),
+  grandTotal: z.number().optional(),
+  subtotal: z.number().optional(),
+  vat: z.number().optional(),
   paid_amount: z.number().min(0).optional(),
+  paidAmount: z.number().min(0).optional(),
+  advance_amount: z.number().min(0).optional(),
+  advanceAmount: z.number().min(0).optional(),
+  advance: z.number().min(0).optional(),
+  balance_amount: z.number().min(0).optional(),
+  balanceAmount: z.number().min(0).optional(),
 
   items: z.array(invoiceLineItemSchema).optional().default([]),
   addition_items: z.array(additionItemSchema).optional().default([]),
@@ -72,6 +86,8 @@ export const createInvoiceSchema = z.object({
 });
 
 export const updateInvoiceSchema = z.object({
+  invoice_number: z.string().optional(),
+  invoiceNumber: z.string().optional(),
   invoice_type: z.enum(['standard', 'statement']).optional(),
   customer_id: z.string().optional(),
   customer_name: z.string().min(1).optional(),
@@ -91,7 +107,19 @@ export const updateInvoiceSchema = z.object({
   remarks: z.string().optional(),
   currency: z.string().optional(),
   status: z.string().optional(),
+  amount: z.number().optional(),
+  total: z.number().optional(),
+  grand_total: z.number().optional(),
+  grandTotal: z.number().optional(),
+  subtotal: z.number().optional(),
+  vat: z.number().optional(),
   paid_amount: z.number().min(0).optional(),
+  paidAmount: z.number().min(0).optional(),
+  advance_amount: z.number().min(0).optional(),
+  advanceAmount: z.number().min(0).optional(),
+  advance: z.number().min(0).optional(),
+  balance_amount: z.number().min(0).optional(),
+  balanceAmount: z.number().min(0).optional(),
 
   items: z.array(invoiceLineItemSchema).optional(),
   addition_items: z.array(additionItemSchema).optional(),

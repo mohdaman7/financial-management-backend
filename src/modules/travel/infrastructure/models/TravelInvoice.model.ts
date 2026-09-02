@@ -13,7 +13,7 @@ export interface ITravelInvoice extends Document {
   invoiceNumber: string;
   amount: number;
   dueDate: Date;
-  status: 'unpaid' | 'paid' | 'overdue';
+  status: 'unpaid' | 'paid' | 'overdue' | 'partially_paid';
   payments: ITravelPayment[];
   createdAt: Date;
   updatedAt: Date;
@@ -29,7 +29,7 @@ const TravelInvoiceSchema = new Schema<ITravelInvoice>(
     dueDate: { type: Date, required: true },
     status: {
       type: String,
-      enum: ['unpaid', 'paid', 'overdue'],
+      enum: ['unpaid', 'paid', 'overdue', 'partially_paid'],
       default: 'unpaid',
     },
     payments: [
