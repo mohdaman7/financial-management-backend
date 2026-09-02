@@ -174,6 +174,44 @@ describe('Skyfall International Travels — Receipts & Payment Inflow API', () =
       expect(res.body.message).toBe('Receipt voucher updated successfully');
       expect(res.body.data.transaction_reference).toBe('CHEQUE-CLEAR-88192');
     });
+
+    it('POST /v1/receipts should handle snake_case payload and string invoice number safely', async () => {
+      const payload = {
+        invoice_id: 'INV-1024',
+        customer_id: sampleCustomerId,
+        customer_name: 'AL VOLGA TRADING LLC',
+        payment_method: 'bank_transfer',
+        amount: 100.0,
+      };
+
+      const res = await getTestAgent()
+        .post('/v1/receipts')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(payload);
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.customerName).toBe('AL VOLGA TRADING LLC');
+      expect(res.body.data.paymentMethod).toBe('Bank Transfer');
+      expect(res.body.data.amount).toBe(100.0);
+    });
+
+    it('POST /v1/receipts should return 400 Bad Request for invalid amount', async () => {
+      const payload = {
+        customer_name: 'AL VOLGA TRADING LLC',
+        payment_method: 'Cash',
+        amount: -50,
+      };
+
+      const res = await getTestAgent()
+        .post('/v1/receipts')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(payload);
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.code).toBe('BAD_REQUEST');
+    });
   });
 
   describe('2. PDF Voucher Streaming & Cancellation', () => {
