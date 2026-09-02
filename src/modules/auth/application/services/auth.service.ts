@@ -26,6 +26,8 @@ export interface UserProfileResponse {
   avatar_color: string;
   avatar_initials: string;
   assignedCompanyId: string | null;
+  companyId?: string | null;
+  isSuperAdmin?: boolean;
   last_login?: string | null;
   permissions?: string[];
 }
@@ -121,6 +123,7 @@ export class AuthService {
     const name = user.name || user.email.split('@')[0].toUpperCase();
     const avatar_initials = user.avatar_initials || this.resolveInitials(name, user.email);
     const avatar_color = user.avatar_color || DEFAULT_AVATAR_COLORS[roleKey];
+    const permissions = this.resolvePermissions(roleKey, roleObj);
 
     return {
       id: user._id.toString(),
@@ -130,6 +133,9 @@ export class AuthService {
       avatar_color,
       avatar_initials,
       assignedCompanyId: user.companyId ? user.companyId.toString() : null,
+      companyId: user.companyId ? user.companyId.toString() : null,
+      isSuperAdmin: user.isSuperAdmin,
+      permissions: user.isSuperAdmin ? ['*'] : permissions,
       last_login: user.last_login ? user.last_login.toISOString() : null,
     };
   }
@@ -214,8 +220,9 @@ export class AuthService {
       user: {
         ...profile,
         isSuperAdmin: user.isSuperAdmin,
-        companyId: user.companyId?.toString(),
+        companyId: user.companyId?.toString() || undefined,
         roleId: user.roleId?.toString(),
+        permissions: profile.permissions || (user.isSuperAdmin ? ['*'] : this.resolvePermissions(currentRole, roleObj)),
       },
     };
   }
@@ -233,7 +240,7 @@ export class AuthService {
 
     return {
       ...profile,
-      permissions,
+      permissions: user.isSuperAdmin ? ['*'] : permissions,
     };
   }
 
@@ -245,7 +252,7 @@ export class AuthService {
       const user = await this.userRepository.findById(decoded.id);
 
       if (!user || user.refreshToken !== token || user.status === 'inactive') {
-        throw AppError.unauthorized('Invalid or expired refresh token', 'INVALID_TOKEN');
+        throw AppError.unauthorized('Refresh token invalid or expired. Please sign in again.', 'INVALID_TOKEN');
       }
 
       const roleObj = user.roleId ? (user.roleId as unknown as IRole) : undefined;
@@ -260,7 +267,7 @@ export class AuthService {
         expires_in: 86400,
       };
     } catch {
-      throw AppError.unauthorized('Invalid or expired refresh token', 'INVALID_TOKEN');
+      throw AppError.unauthorized('Refresh token invalid or expired. Please sign in again.', 'INVALID_TOKEN');
     }
   }
 

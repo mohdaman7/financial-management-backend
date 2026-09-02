@@ -1,5 +1,6 @@
 export interface ApiResponse<T = unknown> {
   success: boolean;
+  message?: string;
   data?: T;
   meta?: {
     page?: number;
@@ -48,6 +49,7 @@ export class ResponseFormatter {
   ): ApiResponse<never> {
     return {
       success: false,
+      message,
       error: {
         code,
         message,

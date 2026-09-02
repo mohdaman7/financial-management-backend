@@ -31,7 +31,8 @@ export function createApp(): Application {
           !origin ||
           config.NODE_ENV !== 'production' ||
           allowedOrigins.includes('*') ||
-          allowedOrigins.includes(origin)
+          allowedOrigins.includes(origin) ||
+          origin.endsWith('.vercel.app')
         ) {
           callback(null, true);
         } else {
@@ -39,6 +40,9 @@ export function createApp(): Application {
         }
       },
       credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'x-company-id', 'x-request-id'],
+      exposedHeaders: ['x-request-id'],
     }),
   );
   app.use(compression());

@@ -18,7 +18,7 @@ export function authenticate(req: Request, _res: Response, next: NextFunction): 
     req.user = decoded;
     next();
   } catch {
-    next(AppError.unauthorized('Invalid or expired authentication token', 'INVALID_TOKEN'));
+    next(AppError.unauthorized('Access token expired or invalid', 'INVALID_TOKEN'));
   }
 }
 
