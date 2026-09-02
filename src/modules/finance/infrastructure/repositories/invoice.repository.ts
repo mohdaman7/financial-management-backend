@@ -29,11 +29,8 @@ export class InvoiceRepository {
     const query: any = {};
 
     if (companyId && Types.ObjectId.isValid(companyId)) {
-      query.$or = [
-        { companyId: new Types.ObjectId(companyId) },
-        { companyId: null },
-        { companyId: { $exists: false } },
-      ];
+      // Strict workspace scoping - only return invoices for this company
+      query.companyId = new Types.ObjectId(companyId);
     }
 
     if (filters.status && filters.status !== 'all') {

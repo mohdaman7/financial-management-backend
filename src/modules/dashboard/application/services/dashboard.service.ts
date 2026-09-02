@@ -1,3 +1,4 @@
+import { InvoiceModel } from '../../../finance/infrastructure/models/Invoice.model';
 import { AttendanceRepository } from '../../../attendance/infrastructure/repositories/attendance.repository';
 import { EmployeeRepository } from '../../../employee/infrastructure/repositories/employee.repository';
 import { TransactionRepository } from '../../../finance/infrastructure/repositories/transaction.repository';
@@ -44,32 +45,34 @@ export class DashboardService {
 
     const attendanceRate = totalEmployees > 0 ? (activeAttendanceToday / totalEmployees) * 100 : 0;
 
-    // 3. Get transactions and compute real KPIs
-    const txs = await this.transactionRepository.findByCompany(companyId, {});
+    // 3. Get invoices and compute real KPIs from InvoiceModel
+    const invoices = await InvoiceModel.find({ companyId });
     let revenue = 0;
     let expenses = 0;
     let pendingPayments = 0;
 
+    for (const inv of invoices) {
+      if (inv.status === 'Paid' || inv.status === 'Partially Paid') {
+        revenue += inv.paid_amount || inv.grand_total || 0;
+      } else if (inv.status === 'Pending') {
+        pendingPayments += inv.balance_amount || inv.grand_total || 0;
+      }
+    }
+
+    const txs = await this.transactionRepository.findByCompany(companyId, {});
     for (const tx of txs) {
-      if (tx.status === 'completed') {
-        if (tx.type === 'income') {
-          revenue += tx.amount;
-        } else {
-          expenses += tx.amount;
-        }
-      } else if (tx.status === 'pending') {
-        pendingPayments += tx.amount;
+      if (tx.status === 'completed' && tx.type === 'expense') {
+        expenses += tx.amount;
       }
     }
 
     const profit = revenue - expenses;
-    const recentTransactions = txs.slice(0, 5).map((tx) => ({
-      id: tx._id.toString(),
-      description:
-        tx.description || `${tx.type === 'income' ? 'Income' : 'Expense'} - ${tx.category}`,
-      amount: tx.amount,
-      type: tx.type,
-      date: tx.date.toISOString(),
+    const recentTransactions = invoices.slice(0, 5).map((inv) => ({
+      id: inv._id.toString(),
+      description: `Invoice #${inv.invoice_number} - ${inv.customer_name}`,
+      amount: inv.grand_total,
+      type: 'income',
+      date: inv.createdAt ? inv.createdAt.toISOString() : new Date().toISOString(),
     }));
 
     // 4. Get travel bookings and compute actual travel metrics
