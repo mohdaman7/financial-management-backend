@@ -135,7 +135,7 @@ export class AuthService {
       assignedCompanyId: user.companyId ? user.companyId.toString() : null,
       companyId: user.companyId ? user.companyId.toString() : null,
       isSuperAdmin: user.isSuperAdmin,
-      permissions: user.isSuperAdmin ? ['*'] : permissions,
+      permissions: user.isSuperAdmin ? Array.from(new Set(['*', ...permissions])) : permissions,
       last_login: user.last_login ? user.last_login.toISOString() : null,
     };
   }
@@ -240,7 +240,7 @@ export class AuthService {
 
     return {
       ...profile,
-      permissions: user.isSuperAdmin ? ['*'] : permissions,
+      permissions: user.isSuperAdmin ? Array.from(new Set(['*', ...permissions])) : permissions,
     };
   }
 

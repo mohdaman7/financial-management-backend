@@ -61,19 +61,33 @@ export class DashboardService {
 
     const txs = await this.transactionRepository.findByCompany(companyId, {});
     for (const tx of txs) {
-      if (tx.status === 'completed' && tx.type === 'expense') {
+      if (tx.status === 'completed' && tx.type === 'income') {
+        revenue += tx.amount;
+      } else if (tx.status === 'completed' && tx.type === 'expense') {
         expenses += tx.amount;
+      } else if (tx.status === 'pending') {
+        pendingPayments += tx.amount;
       }
     }
 
     const profit = revenue - expenses;
-    const recentTransactions = invoices.slice(0, 5).map((inv) => ({
+    let recentTransactions = invoices.slice(0, 5).map((inv) => ({
       id: inv._id.toString(),
       description: `Invoice #${inv.invoice_number} - ${inv.customer_name}`,
       amount: inv.grand_total,
       type: 'income',
       date: inv.createdAt ? inv.createdAt.toISOString() : new Date().toISOString(),
     }));
+
+    if (recentTransactions.length === 0) {
+      recentTransactions = txs.slice(0, 5).map((tx) => ({
+        id: tx._id.toString(),
+        description: `Transaction - ${tx.category}`,
+        amount: tx.amount,
+        type: tx.type,
+        date: tx.createdAt ? (tx as any).createdAt.toISOString() : new Date().toISOString(),
+      }));
+    }
 
     // 4. Get travel bookings and compute actual travel metrics
     const travelBookings =

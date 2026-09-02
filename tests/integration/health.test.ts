@@ -22,6 +22,7 @@ describe('404 Handler', () => {
     expect(response.status).toBe(404);
     expect(response.body).toEqual({
       success: false,
+      message: 'Route not found',
       error: {
         code: 'NOT_FOUND',
         message: 'Route not found',

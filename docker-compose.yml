@@ -15,7 +15,7 @@ services:
       - MONGODB_URI=mongodb://mongodb:27017/financial_management
       - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-skyfall_prod_jwt_access_secret_key_32_chars_min}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-skyfall_prod_jwt_refresh_secret_key_32_chars_min}
-      - JWT_ACCESS_EXPIRES_IN=15m
+      - JWT_ACCESS_EXPIRES_IN=1d
       - JWT_REFRESH_EXPIRES_IN=7d
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000,http://localhost:5173,http://localhost:8080}
       - RATE_LIMIT_WINDOW_MS=900000
