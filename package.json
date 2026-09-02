@@ -15,6 +15,8 @@
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\"",
     "ci": "npm run lint && npm run typecheck && npm test && npm run build",
+    "seed": "ts-node -r tsconfig-paths/register seed.ts",
+    "set-admin": "ts-node -r tsconfig-paths/register scripts/setAdminCredentials.ts",
     "docker:build": "docker build -t financial-management-api .",
     "docker:run": "docker compose up -d"
   },
