@@ -18,7 +18,7 @@ export interface ITransaction extends Document {
 
 const TransactionSchema = new Schema<ITransaction>(
   {
-    companyId: { type: Schema.Types.ObjectId, ref: 'Company', required: true },
+    companyId: { type: Schema.Types.ObjectId, ref: 'Company', default: null },
     type: { type: String, enum: ['income', 'expense'], required: true },
     category: { type: String, required: true, trim: true },
     amount: { type: Number, required: true, min: 0 },

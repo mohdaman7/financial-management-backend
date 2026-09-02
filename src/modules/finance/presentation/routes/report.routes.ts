@@ -27,6 +27,12 @@ router.get(
 );
 router.get('/sales/leads', authenticate, authorizeCompany, controller.getLeadsReport);
 router.get('/sales/credit-notes', authenticate, authorizeCompany, controller.getCreditNotesReport);
+router.get(
+  '/sales/employee-performance',
+  authenticate,
+  authorizeCompany,
+  controller.getEmployeePerformanceReport,
+);
 
 // ----------------------------------------------------
 // 💰 PART 2: FINANCE & ACCOUNTING REPORTS
@@ -72,6 +78,12 @@ router.get(
 );
 router.get(
   '/finance/employee-performance',
+  authenticate,
+  authorizeCompany,
+  controller.getEmployeePerformanceReport,
+);
+router.get(
+  '/employee-performance',
   authenticate,
   authorizeCompany,
   controller.getEmployeePerformanceReport,

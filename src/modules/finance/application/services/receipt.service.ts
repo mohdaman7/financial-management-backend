@@ -275,25 +275,29 @@ export class ReceiptService {
     }
 
     // Record Income Transaction in Finance module
-    const txPm =
-      paymentMethod === 'Cash'
-        ? 'cash'
-        : paymentMethod === 'Card'
-        ? 'card'
-        : 'bank_transfer';
+    try {
+      const txPm =
+        paymentMethod === 'Cash'
+          ? 'cash'
+          : paymentMethod === 'Card'
+          ? 'card'
+          : 'bank_transfer';
 
-    await TransactionModel.create({
-      companyId:
-        companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined,
-      type: 'income',
-      category: 'Receipt Payment Inflow',
-      amount: amount,
-      date: date ? new Date(date) : new Date(),
-      paymentMethod: txPm,
-      status: status === 'Cancelled' ? 'cancelled' : 'completed',
-      reference: reference,
-      description: `Payment receipt voucher from ${customerName}`,
-    });
+      await TransactionModel.create({
+        companyId:
+          companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined,
+        type: 'income',
+        category: 'Receipt Payment Inflow',
+        amount: amount,
+        date: date ? new Date(date) : new Date(),
+        paymentMethod: txPm,
+        status: status === 'Cancelled' ? 'cancelled' : 'completed',
+        reference: reference,
+        description: `Payment receipt voucher from ${customerName}`,
+      });
+    } catch (txErr) {
+      console.warn('Could not record background income transaction for receipt:', txErr);
+    }
 
     // Update Customer Total Spent
     if (customerId && Types.ObjectId.isValid(customerId)) {
