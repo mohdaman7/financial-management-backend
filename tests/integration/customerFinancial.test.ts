@@ -627,5 +627,62 @@ describe('Customer Account & Financial Ledger API Tests', () => {
       expect(testInv.paid).toBe(2500.0); // 500 deposit + 2000 advance receipt
       expect(testInv.outstanding).toBe(500.0); // 3000 - 2500 = 500
     });
+
+    it('6. GET /api/v1/invoices/outstanding should match and allocate receipts even when invoice customer_id is empty/missing', async () => {
+      const testCust2 = await CustomerModel.create({
+        name: 'Unlinked Legacy Customer',
+        email: 'unlinked@example.com',
+        phone: '+971511111111',
+        companyId: new Types.ObjectId(companyId),
+        status: 'active',
+      });
+
+      // Create Invoice with MISSING customer_id (simulating legacy data)
+      const legacyInv = await InvoiceModel.create({
+        companyId: new Types.ObjectId(companyId),
+        customer_name: 'Unlinked Legacy Customer',
+        invoice_number: 'LEGACY-INV-999',
+        issue_date: '2026-09-03',
+        due_date: '2026-09-10',
+        grand_total: 4000.0,
+        subtotal: 4000.0,
+        advance_paid: 1000.0,
+        paid_amount: 1000.0,
+        balance_amount: 3000.0,
+        status: 'Partially Paid',
+        lead_by: 'Staff',
+      });
+
+      // Create Receipt with customerId
+      await ReceiptModel.create({
+        companyId: new Types.ObjectId(companyId),
+        customerId: testCust2._id,
+        customerName: 'Unlinked Legacy Customer',
+        reference: 'REC-LEGACY-01',
+        amount: 2500.0,
+        date: '2026-09-03',
+        paymentMethod: 'Bank Transfer',
+        status: 'Received',
+        unallocated_amount: 2500.0,
+        allocations: [],
+      });
+
+      const res = await getTestAgent()
+        .get('/api/v1/invoices/outstanding')
+        .set('Authorization', `Bearer ${authToken}`)
+        .set('x-company-id', companyId);
+
+      expect(res.status).toBe(200);
+      const matchedInv = res.body.data.find((i: any) => i.invoiceId === 'LEGACY-INV-999');
+      expect(matchedInv).toBeDefined();
+      expect(matchedInv.customerId).toBe(testCust2._id.toString()); // Resolved ID
+      expect(matchedInv.total).toBe(4000.0);
+      expect(matchedInv.paid).toBe(3500.0); // 1000 initial + 2500 receipt
+      expect(matchedInv.outstanding).toBe(500.0); // 4000 - 3500 = 500
+
+      // Verify DB document was auto-healed
+      const healedDbDoc = await InvoiceModel.findById(legacyInv._id);
+      expect(healedDbDoc?.customer_id?.toString()).toBe(testCust2._id.toString());
+    });
   });
 });

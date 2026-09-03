@@ -14,6 +14,7 @@ import {
 } from '../../infrastructure/models/Invoice.model';
 import { ReceiptModel } from '../../infrastructure/models/Receipt.model';
 import { TravelInvoiceModel } from '../../../travel/infrastructure/models/TravelInvoice.model';
+import { CustomerModel } from '@modules/customer/infrastructure/models/Customer.model';
 import { AppError } from '@shared/errors/AppError';
 import { PdfGenerator } from '@shared/utils/pdfGenerator';
 import { CurrencyPrecision } from '@shared/utils/currencyPrecision';
@@ -323,6 +324,24 @@ export class InvoiceService {
 
     const financials = this.calculateFinancials(data);
 
+    let customerIdObj: Types.ObjectId | undefined =
+      data.customer_id && Types.ObjectId.isValid(data.customer_id)
+        ? new Types.ObjectId(data.customer_id)
+        : undefined;
+
+    if (!customerIdObj && data.customer_name && data.customer_name.trim()) {
+      const companyObjectId =
+        companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined;
+      const escapedName = data.customer_name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const matchedCust = await CustomerModel.findOne({
+        ...(companyObjectId ? { companyId: companyObjectId } : {}),
+        name: { $regex: new RegExp(`^${escapedName}$`, 'i') },
+      }).exec();
+      if (matchedCust) {
+        customerIdObj = matchedCust._id;
+      }
+    }
+
     const invoice = await this.invoiceRepository.create({
       companyId:
         companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined,
@@ -330,10 +349,7 @@ export class InvoiceService {
       invoice_number: invoiceNumber,
       file_no: invoiceNumber,
       invoice_type: data.invoice_type || 'standard',
-      customer_id:
-        data.customer_id && Types.ObjectId.isValid(data.customer_id)
-          ? new Types.ObjectId(data.customer_id)
-          : undefined,
+      customer_id: customerIdObj,
       customer_name: data.customer_name.trim(),
       care_of: data.care_of || '',
       contact_name: data.contact_name || '',
@@ -385,7 +401,7 @@ export class InvoiceService {
       companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined;
     const queryCompany: Record<string, any> = companyObjectId ? { companyId: companyObjectId } : {};
 
-    const [stdInvoices, travelInvoices, receipts] = await Promise.all([
+    const [stdInvoices, travelInvoices, receipts, customers] = await Promise.all([
       InvoiceModel.find({
         ...queryCompany,
         status: { $nin: ['Cancelled', 'cancelled', 'Void', 'void'] },
@@ -404,7 +420,66 @@ export class InvoiceService {
         .sort({ date: 1, createdAt: 1 })
         .lean()
         .exec(),
+      CustomerModel.find(queryCompany)
+        .lean()
+        .exec(),
     ]);
+
+    const normalizeName = (name?: string) =>
+      (name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+    const nameToCustomerId = new Map<string, string>();
+    for (const c of customers) {
+      const cid = c._id.toString();
+      if (c.name) nameToCustomerId.set(normalizeName(c.name), cid);
+      if ((c as any).company_name) nameToCustomerId.set(normalizeName((c as any).company_name), cid);
+    }
+
+    const resolveCustomerKey = (customerId?: any, customerName?: string): string => {
+      if (customerId && Types.ObjectId.isValid(customerId.toString())) {
+        return customerId.toString();
+      }
+      const norm = normalizeName(customerName);
+      if (norm && nameToCustomerId.has(norm)) {
+        return nameToCustomerId.get(norm)!;
+      }
+      if (norm) {
+        return `name:${norm}`;
+      }
+      if (customerId) {
+        return customerId.toString();
+      }
+      return '';
+    };
+
+    // Auto-heal missing customer_id on invoices and receipts in database
+    for (const inv of stdInvoices) {
+      if ((!inv.customer_id || inv.customer_id.toString() === '') && inv.customer_name) {
+        const norm = normalizeName(inv.customer_name);
+        const matchedId = nameToCustomerId.get(norm);
+        if (matchedId) {
+          (inv as any).customer_id = new Types.ObjectId(matchedId);
+          InvoiceModel.updateOne(
+            { _id: inv._id },
+            { $set: { customer_id: new Types.ObjectId(matchedId) } }
+          ).exec().catch(() => {});
+        }
+      }
+    }
+
+    for (const rec of receipts) {
+      if ((!rec.customerId || rec.customerId.toString() === '') && rec.customerName) {
+        const norm = normalizeName(rec.customerName);
+        const matchedId = nameToCustomerId.get(norm);
+        if (matchedId) {
+          (rec as any).customerId = new Types.ObjectId(matchedId);
+          ReceiptModel.updateOne(
+            { _id: rec._id },
+            { $set: { customerId: new Types.ObjectId(matchedId) } }
+          ).exec().catch(() => {});
+        }
+      }
+    }
 
     const customerInvoicesMap = new Map<
       string,
@@ -413,9 +488,7 @@ export class InvoiceService {
     const allocationResultMap = new Map<string, { paid: number; remaining: number; status: string }>();
 
     for (const inv of stdInvoices) {
-      const custKey = inv.customer_id
-        ? inv.customer_id.toString()
-        : (inv.customer_name || '').trim().toLowerCase();
+      const custKey = resolveCustomerKey(inv.customer_id, inv.customer_name);
       if (!custKey) continue;
       const list = customerInvoicesMap.get(custKey) || [];
       const basePaid = CurrencyPrecision.round(
@@ -432,9 +505,7 @@ export class InvoiceService {
     }
 
     for (const trInv of travelInvoices) {
-      const custKey = (trInv as any).customerId
-        ? (trInv as any).customerId.toString()
-        : ((trInv as any).customerName || '').trim().toLowerCase();
+      const custKey = resolveCustomerKey((trInv as any).customerId, (trInv as any).customerName);
       if (!custKey) continue;
       const list = customerInvoicesMap.get(custKey) || [];
       const trPaid = CurrencyPrecision.round(
@@ -450,9 +521,7 @@ export class InvoiceService {
 
     const customerReceiptsMap = new Map<string, any[]>();
     for (const rec of receipts) {
-      const custKey = rec.customerId
-        ? rec.customerId.toString()
-        : (rec.customerName || '').trim().toLowerCase();
+      const custKey = resolveCustomerKey(rec.customerId, rec.customerName);
       if (!custKey) continue;
       const list = customerReceiptsMap.get(custKey) || [];
       list.push(rec);
@@ -522,13 +591,14 @@ export class InvoiceService {
       const paid = allocation !== undefined ? allocation.paid : (inv.paid_amount || 0);
       const remaining = allocation !== undefined ? allocation.remaining : (inv.balance_amount || 0);
       const status = allocation !== undefined ? allocation.status : inv.status;
+      const custIdStr = inv.customer_id ? inv.customer_id.toString() : '';
 
       return {
         id: inv.custom_id || inv._id.toString(),
         invoice_number: inv.invoice_number,
         invoiceNumber: inv.invoice_number,
-        customer_id: inv.customer_id ? inv.customer_id.toString() : '',
-        customerId: inv.customer_id ? inv.customer_id.toString() : '',
+        customer_id: custIdStr,
+        customerId: custIdStr,
         customer_name: inv.customer_name,
         customerName: inv.customer_name,
         service: inv.service || (inv.items?.[0]?.description ?? inv.category ?? 'General'),
@@ -580,7 +650,7 @@ export class InvoiceService {
       companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined;
     const queryCompany: Record<string, any> = companyObjectId ? { companyId: companyObjectId } : {};
 
-    const [stdInvoices, travelInvoices, allocationMap] = await Promise.all([
+    const [stdInvoices, travelInvoices, allocationMap, customers] = await Promise.all([
       InvoiceModel.find({
         ...queryCompany,
         status: { $nin: ['Cancelled', 'cancelled', 'Void', 'void'] },
@@ -593,7 +663,18 @@ export class InvoiceService {
         .lean()
         .exec(),
       this.computeFifoAllocationsForInvoices(companyId),
+      CustomerModel.find(queryCompany).lean().exec(),
     ]);
+
+    const normalizeName = (name?: string) =>
+      (name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+    const nameToCustomerId = new Map<string, string>();
+    for (const c of customers) {
+      const cid = c._id.toString();
+      if (c.name) nameToCustomerId.set(normalizeName(c.name), cid);
+      if ((c as any).company_name) nameToCustomerId.set(normalizeName((c as any).company_name), cid);
+    }
 
     const list: Array<any> = [];
 
@@ -616,6 +697,10 @@ export class InvoiceService {
       const daysOverdue = Math.max(0, diffDays);
       const status = daysOverdue > 0 ? 'Overdue' : 'Due Soon';
 
+      const resolvedCustId = inv.customer_id
+        ? inv.customer_id.toString()
+        : (nameToCustomerId.get(normalizeName(inv.customer_name)) || '');
+
       list.push({
         id: inv.custom_id || inv._id.toString(),
         invoiceId: inv.invoice_number || inv.custom_id || inv._id.toString(),
@@ -623,8 +708,8 @@ export class InvoiceService {
         invoiceNumber: inv.invoice_number,
         customerName: inv.customer_name || 'Customer',
         customer_name: inv.customer_name || 'Customer',
-        customerId: inv.customer_id ? inv.customer_id.toString() : '',
-        customer_id: inv.customer_id ? inv.customer_id.toString() : '',
+        customerId: resolvedCustId,
+        customer_id: resolvedCustId,
         invoiceDate: inv.issue_date || '',
         invoice_date: inv.issue_date || '',
         dueDate: dueDateStr,
@@ -664,6 +749,10 @@ export class InvoiceService {
       const daysOverdue = Math.max(0, diffDays);
       const status = daysOverdue > 0 ? 'Overdue' : 'Due Soon';
 
+      const resolvedCustId = (trInv as any).customerId
+        ? (trInv as any).customerId.toString()
+        : (nameToCustomerId.get(normalizeName((trInv as any).customerName)) || '');
+
       list.push({
         id: trInv._id.toString(),
         invoiceId: trInv.invoiceNumber || trInv._id.toString(),
@@ -671,8 +760,8 @@ export class InvoiceService {
         invoiceNumber: trInv.invoiceNumber || '',
         customerName: (trInv as any).customerName || 'Travel Client',
         customer_name: (trInv as any).customerName || 'Travel Client',
-        customerId: (trInv as any).customerId ? (trInv as any).customerId.toString() : '',
-        customer_id: (trInv as any).customerId ? (trInv as any).customerId.toString() : '',
+        customerId: resolvedCustId,
+        customer_id: resolvedCustId,
         invoiceDate: trInv.createdAt ? new Date(trInv.createdAt).toISOString().split('T')[0] : '',
         invoice_date: trInv.createdAt ? new Date(trInv.createdAt).toISOString().split('T')[0] : '',
         dueDate: dueDateStr,
@@ -802,12 +891,24 @@ export class InvoiceService {
 
     const financials = this.calculateFinancials(mergedData);
 
+    let updatedCustomerId =
+      mergedData.customer_id && Types.ObjectId.isValid(mergedData.customer_id)
+        ? new Types.ObjectId(mergedData.customer_id)
+        : existing.customer_id;
+
+    if (!updatedCustomerId && mergedData.customer_name && mergedData.customer_name.trim()) {
+      const escapedName = mergedData.customer_name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const matchedCust = await CustomerModel.findOne({
+        name: { $regex: new RegExp(`^${escapedName}$`, 'i') },
+      }).exec();
+      if (matchedCust) {
+        updatedCustomerId = matchedCust._id;
+      }
+    }
+
     const updatePayload: Partial<IInvoice> = {
       ...mergedData,
-      customer_id:
-        mergedData.customer_id && Types.ObjectId.isValid(mergedData.customer_id)
-          ? new Types.ObjectId(mergedData.customer_id)
-          : existing.customer_id,
+      customer_id: updatedCustomerId,
       status: financials.status,
       items: financials.items,
       addition_items: financials.addition_items,
