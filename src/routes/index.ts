@@ -63,4 +63,12 @@ router.use('/bank-transactions', (req, res, next) => {
   financeRoutes(req, res, next);
 });
 
+// Alternative direct route for advance payments
+router.use('/advance-payments', (req, res, next) => {
+  const queryIndex = req.url.indexOf('?');
+  const queryString = queryIndex !== -1 ? req.url.substring(queryIndex) : '';
+  req.url = '/advance-payments' + queryString;
+  financeRoutes(req, res, next);
+});
+
 export default router;

@@ -52,6 +52,49 @@ export interface BankStatementResult {
   transactions: BankStatementTransactionItem[];
 }
 
+export interface AdvancePaymentsFilterDTO {
+  startDate?: string;
+  endDate?: string;
+  search?: string;
+  status?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface AdvancePaymentItem {
+  id: string;
+  advanceId: string;
+  customerName: string;
+  customerId: string;
+  dateReceived: string;
+  paymentMethod: string;
+  referenceTransaction: string;
+  totalReceived: number;
+  allocatedAmount: number;
+  unallocatedBalance: number;
+  status: 'Unallocated' | 'Partially Allocated' | 'Fully Allocated' | string;
+}
+
+export interface AdvancePaymentsSummary {
+  totalReceived: number;
+  allocatedAmount: number;
+  unallocatedBalance: number;
+  currency: string;
+}
+
+export interface AdvancePaymentsPagination {
+  totalRecords: number;
+  currentPage: number;
+  totalPages: number;
+  limit: number;
+}
+
+export interface AdvancePaymentsResult {
+  summary: AdvancePaymentsSummary;
+  pagination: AdvancePaymentsPagination;
+  advances: AdvancePaymentItem[];
+}
+
 export class FinanceService {
   constructor(
     private transactionRepository: TransactionRepository,
@@ -707,4 +750,363 @@ export class FinanceService {
       transactions: formattedTransactions,
     };
   }
+
+  // --- Advance Payments Aggregation & FIFO Matching ---
+  async getAdvancePayments(
+    companyId: string | undefined,
+    filters: AdvancePaymentsFilterDTO = {},
+  ): Promise<AdvancePaymentsResult> {
+    const companyObjectId =
+      companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined;
+
+    // Resolve Currency
+    let currency = 'AED';
+    if (companyObjectId) {
+      const bankAcc = await BankAccountModel.findOne({ companyId: companyObjectId })
+        .select('currency')
+        .lean()
+        .exec();
+      if (bankAcc && bankAcc.currency) {
+        currency = bankAcc.currency;
+      }
+    }
+
+    const normalizeMethod = (method?: string): string => {
+      if (!method) return 'Bank Transfer';
+      const clean = method.trim().toLowerCase().replace(/[\s_-]+/g, '');
+      if (clean === 'cash') return 'Cash';
+      if (
+        clean === 'banktransfer' ||
+        clean === 'bank' ||
+        clean === 'wire' ||
+        clean === 'transfer'
+      ) {
+        return 'Bank Transfer';
+      }
+      if (clean === 'card' || clean === 'creditcard' || clean === 'credit card') {
+        return 'Credit Card';
+      }
+      if (clean === 'debitcard' || clean === 'debit card') {
+        return 'Debit Card';
+      }
+      if (clean === 'cheque' || clean === 'check') {
+        return 'Cheque';
+      }
+      if (clean.includes('online') || clean.includes('gateway')) {
+        return 'Online Payment';
+      }
+      if (clean === 'directdebit' || clean === 'direct debit') {
+        return 'Direct Debit';
+      }
+      return method
+        .split(' ')
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+    };
+
+    const queryCompany: Record<string, any> = companyObjectId ? { companyId: companyObjectId } : {};
+
+    // 1. Fetch non-cancelled receipts for company
+    const dbReceipts = await ReceiptModel.find({
+      ...queryCompany,
+      status: { $nin: ['Cancelled', 'cancelled'] },
+    })
+      .sort({ date: 1, createdAt: 1 })
+      .lean()
+      .exec();
+
+    // 2. Fetch non-cancelled invoices for company
+    const [dbInvoices, dbTravelInvoices] = await Promise.all([
+      InvoiceModel.find({
+        ...queryCompany,
+        status: { $nin: ['Cancelled', 'cancelled', 'Void'] },
+      })
+        .sort({ issue_date: 1, createdAt: 1 })
+        .lean()
+        .exec(),
+      TravelInvoiceModel.find({
+        ...queryCompany,
+      })
+        .sort({ createdAt: 1 })
+        .lean()
+        .exec(),
+    ]);
+
+    // Build unified customer identity mapping between ID and Name
+    const nameToCanonicalKey = new Map<string, string>();
+    const idToCanonicalKey = new Map<string, string>();
+
+    const registerCustomerIdentity = (id?: any, name?: string) => {
+      const idStr = id ? id.toString() : '';
+      const cleanName = name ? name.trim().toLowerCase() : '';
+      if (idStr && cleanName) {
+        let canonical = idToCanonicalKey.get(idStr) || nameToCanonicalKey.get(cleanName) || idStr;
+        idToCanonicalKey.set(idStr, canonical);
+        nameToCanonicalKey.set(cleanName, canonical);
+      } else if (idStr) {
+        if (!idToCanonicalKey.has(idStr)) idToCanonicalKey.set(idStr, idStr);
+      } else if (cleanName) {
+        if (!nameToCanonicalKey.has(cleanName)) nameToCanonicalKey.set(cleanName, cleanName);
+      }
+    };
+
+    dbReceipts.forEach((r) => registerCustomerIdentity(r.customerId, r.customerName));
+    dbInvoices.forEach((i) => registerCustomerIdentity(i.customer_id, i.customer_name));
+    dbTravelInvoices.forEach((t) => registerCustomerIdentity(t.customerId));
+
+    const getCanonicalKey = (id?: any, name?: string): string => {
+      const idStr = id ? id.toString() : '';
+      const cleanName = name ? name.trim().toLowerCase() : '';
+      if (idStr && idToCanonicalKey.has(idStr)) return idToCanonicalKey.get(idStr)!;
+      if (cleanName && nameToCanonicalKey.has(cleanName)) return nameToCanonicalKey.get(cleanName)!;
+      return idStr || cleanName || 'unknown';
+    };
+
+    // Group invoices by canonical customer key
+    interface CustomerInvoiceRecord {
+      id: string;
+      amount: number;
+      date: string;
+      rawDate: Date;
+    }
+
+    const customerInvoicesMap = new Map<string, CustomerInvoiceRecord[]>();
+
+    dbInvoices.forEach((inv) => {
+      const key = getCanonicalKey(inv.customer_id, inv.customer_name);
+      const amount = CurrencyPrecision.round(inv.grand_total || 0);
+      if (amount > 0) {
+        const dateStr =
+          inv.issue_date || (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : '');
+        const rawDate = inv.issue_date
+          ? new Date(inv.issue_date)
+          : inv.createdAt
+          ? new Date(inv.createdAt)
+          : new Date();
+        const list = customerInvoicesMap.get(key) || [];
+        list.push({
+          id: inv.invoice_number || inv._id.toString(),
+          amount,
+          date: dateStr,
+          rawDate,
+        });
+        customerInvoicesMap.set(key, list);
+      }
+    });
+
+    dbTravelInvoices.forEach((trInv) => {
+      const key = getCanonicalKey(trInv.customerId);
+      const amount = CurrencyPrecision.round(trInv.amount || 0);
+      if (amount > 0) {
+        const rawDate = trInv.createdAt ? new Date(trInv.createdAt) : new Date();
+        const dateStr = rawDate.toISOString().split('T')[0];
+        const list = customerInvoicesMap.get(key) || [];
+        list.push({
+          id: trInv.invoiceNumber || trInv._id.toString(),
+          amount,
+          date: dateStr,
+          rawDate,
+        });
+        customerInvoicesMap.set(key, list);
+      }
+    });
+
+    // Sort customer invoices chronologically
+    customerInvoicesMap.forEach((invList) => {
+      invList.sort((a, b) => a.rawDate.getTime() - b.rawDate.getTime());
+    });
+
+    // Group receipts by canonical customer key
+    const customerReceiptsMap = new Map<string, any[]>();
+    dbReceipts.forEach((rec) => {
+      const key = getCanonicalKey(rec.customerId, rec.customerName);
+      const list = customerReceiptsMap.get(key) || [];
+      list.push(rec);
+      customerReceiptsMap.set(key, list);
+    });
+
+    interface CandidateAdvance {
+      id: string;
+      advanceId: string;
+      customerName: string;
+      customerId: string;
+      dateReceived: string;
+      rawDate: Date;
+      paymentMethod: string;
+      referenceTransaction: string;
+      totalReceived: number;
+      allocatedAmount: number;
+      unallocatedBalance: number;
+      status: string;
+    }
+
+    const allAdvances: CandidateAdvance[] = [];
+
+    // 3. Run FIFO matching per customer
+    customerReceiptsMap.forEach((receiptsList, key) => {
+      // Sort receipts chronologically
+      receiptsList.sort((a, b) => {
+        const dateA = a.date ? new Date(a.date) : a.createdAt ? new Date(a.createdAt) : new Date(0);
+        const dateB = b.date ? new Date(b.date) : b.createdAt ? new Date(b.createdAt) : new Date(0);
+        return dateA.getTime() - dateB.getTime();
+      });
+
+      const customerInvoices = customerInvoicesMap.get(key) || [];
+      const invoiceDues = customerInvoices.map((inv) => ({
+        id: inv.id,
+        remainingDue: inv.amount,
+      }));
+
+      for (const rec of receiptsList) {
+        const totalReceived = CurrencyPrecision.round(rec.amount || 0);
+        let allocatedAmount = 0;
+
+        for (const inv of invoiceDues) {
+          if (inv.remainingDue <= 0) continue;
+          const available = CurrencyPrecision.round(totalReceived - allocatedAmount);
+          if (available <= 0) break;
+
+          const toAllocate = CurrencyPrecision.round(Math.min(inv.remainingDue, available));
+          allocatedAmount = CurrencyPrecision.round(allocatedAmount + toAllocate);
+          inv.remainingDue = CurrencyPrecision.round(inv.remainingDue - toAllocate);
+        }
+
+        const unallocatedBalance = CurrencyPrecision.round(
+          Math.max(0, totalReceived - allocatedAmount),
+        );
+
+        let status = 'Unallocated';
+        if (allocatedAmount === 0) {
+          status = 'Unallocated';
+        } else if (unallocatedBalance === 0 || allocatedAmount >= totalReceived) {
+          status = 'Fully Allocated';
+        } else {
+          status = 'Partially Allocated';
+        }
+
+        const dateStr = rec.date
+          ? rec.date.includes('T')
+            ? rec.date.split('T')[0]
+            : rec.date
+          : rec.createdAt
+          ? new Date(rec.createdAt).toISOString().split('T')[0]
+          : '';
+        const rawDate = rec.date
+          ? new Date(rec.date)
+          : rec.createdAt
+          ? new Date(rec.createdAt)
+          : new Date();
+
+        allAdvances.push({
+          id: '',
+          advanceId: rec._id.toString(),
+          customerName: rec.customerName || 'Unknown Customer',
+          customerId: rec.customerId ? rec.customerId.toString() : '',
+          dateReceived: dateStr,
+          rawDate,
+          paymentMethod: normalizeMethod(rec.paymentMethod),
+          referenceTransaction: rec.transaction_reference || rec.reference || rec._id.toString(),
+          totalReceived,
+          allocatedAmount,
+          unallocatedBalance,
+          status,
+        });
+      }
+    });
+
+    // 4. Apply Filters
+    let filtered = allAdvances;
+
+    // Date Range Filters
+    if (filters.startDate) {
+      filtered = filtered.filter((adv) => adv.dateReceived >= filters.startDate!);
+    }
+    if (filters.endDate) {
+      filtered = filtered.filter((adv) => adv.dateReceived <= filters.endDate!);
+    }
+
+    // Search Query Filter
+    if (filters.search && filters.search.trim()) {
+      const q = filters.search.trim().toLowerCase();
+      filtered = filtered.filter(
+        (adv) =>
+          adv.customerName.toLowerCase().includes(q) ||
+          adv.advanceId.toLowerCase().includes(q) ||
+          adv.referenceTransaction.toLowerCase().includes(q) ||
+          adv.paymentMethod.toLowerCase().includes(q) ||
+          adv.status.toLowerCase().includes(q),
+      );
+    }
+
+    // Status Filter
+    if (filters.status && filters.status.toLowerCase() !== 'all') {
+      const st = filters.status.toLowerCase().replace(/[\s_]+/g, '');
+      if (st === 'unallocated') {
+        filtered = filtered.filter((adv) => adv.status === 'Unallocated');
+      } else if (st === 'partiallyallocated') {
+        filtered = filtered.filter((adv) => adv.status === 'Partially Allocated');
+      } else if (st === 'fullyallocated') {
+        filtered = filtered.filter((adv) => adv.status === 'Fully Allocated');
+      }
+    }
+
+    // 5. Sort advances descending (newest received first)
+    filtered.sort((a, b) => {
+      const timeDiff = b.rawDate.getTime() - a.rawDate.getTime();
+      if (timeDiff !== 0) return timeDiff;
+      return b.totalReceived - a.totalReceived;
+    });
+
+    // 6. Assign sequential human-readable IDs
+    filtered.forEach((adv, index) => {
+      adv.id = `ADV-${String(index + 1).padStart(2, '0')}`;
+    });
+
+    // 7. Calculate Summary KPIs
+    const totalReceived = CurrencyPrecision.round(
+      filtered.reduce((sum, adv) => sum + adv.totalReceived, 0),
+    );
+    const allocatedAmount = CurrencyPrecision.round(
+      filtered.reduce((sum, adv) => sum + adv.allocatedAmount, 0),
+    );
+    const unallocatedBalance = CurrencyPrecision.round(totalReceived - allocatedAmount);
+
+    // 8. Pagination
+    const totalRecords = filtered.length;
+    const page = Math.max(1, filters.page || 1);
+    const limit = Math.max(1, filters.limit || 50);
+    const totalPages = Math.ceil(totalRecords / limit) || 1;
+    const paginated = filtered.slice((page - 1) * limit, page * limit);
+
+    const formattedAdvances: AdvancePaymentItem[] = paginated.map((adv) => ({
+      id: adv.id,
+      advanceId: adv.advanceId,
+      customerName: adv.customerName,
+      customerId: adv.customerId,
+      dateReceived: adv.dateReceived,
+      paymentMethod: adv.paymentMethod,
+      referenceTransaction: adv.referenceTransaction,
+      totalReceived: adv.totalReceived,
+      allocatedAmount: adv.allocatedAmount,
+      unallocatedBalance: adv.unallocatedBalance,
+      status: adv.status,
+    }));
+
+    return {
+      summary: {
+        totalReceived,
+        allocatedAmount,
+        unallocatedBalance,
+        currency,
+      },
+      pagination: {
+        totalRecords,
+        currentPage: page,
+        totalPages,
+        limit,
+      },
+      advances: formattedAdvances,
+    };
+  }
 }
+

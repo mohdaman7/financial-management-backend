@@ -85,3 +85,37 @@ export const bankStatementQuerySchema = z.object({
     .optional(),
 });
 
+export const advancePaymentsQuerySchema = z.object({
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format for startDate. Expected YYYY-MM-DD.')
+    .optional(),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format for endDate. Expected YYYY-MM-DD.')
+    .optional(),
+  search: z.string().optional(),
+  status: z
+    .enum([
+      'all',
+      'unallocated',
+      'partially_allocated',
+      'fully_allocated',
+      'All',
+      'Unallocated',
+      'Partially Allocated',
+      'Fully Allocated',
+    ])
+    .optional()
+    .default('all'),
+  page: z
+    .union([z.string(), z.number()])
+    .transform((val) => Math.max(1, parseInt(String(val), 10) || 1))
+    .optional(),
+  limit: z
+    .union([z.string(), z.number()])
+    .transform((val) => Math.max(1, Math.min(500, parseInt(String(val), 10) || 50)))
+    .optional(),
+});
+
+

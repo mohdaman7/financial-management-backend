@@ -13,6 +13,7 @@ import {
   createBankAccountSchema,
   updateBankAccountSchema,
   bankStatementQuerySchema,
+  advancePaymentsQuerySchema,
 } from '../validators/finance.validator';
 
 const router = Router();
@@ -416,5 +417,63 @@ router.get(
   controller.getBankStatement,
 );
 
+/**
+ * @openapi
+ * /finance/advance-payments:
+ *   get:
+ *     tags:
+ *       - Finance & Accounting
+ *     summary: Fetch customer advance payments and FIFO allocation ledger
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           example: "2026-09-01"
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           example: "2026-09-30"
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *           example: "SALKJSADLK"
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [all, unallocated, partially_allocated, fully_allocated]
+ *           default: all
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *     responses:
+ *       200:
+ *         description: Advance payments fetched successfully
+ *       400:
+ *         description: Invalid date format
+ *       401:
+ *         description: Unauthorized
+ */
+router.get(
+  '/advance-payments',
+  authenticate,
+  authorizeCompany,
+  validate(advancePaymentsQuerySchema, 'query'),
+  controller.getAdvancePayments,
+);
+
 export default router;
+
 

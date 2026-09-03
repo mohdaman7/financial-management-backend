@@ -239,5 +239,30 @@ export class FinanceController {
       next(error);
     }
   };
+
+  getAdvancePayments = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const companyId = req.companyId as string | undefined;
+      const { startDate, endDate, search, status, page, limit } = req.query as any;
+
+      const result = await this.getFinanceService().getAdvancePayments(companyId, {
+        startDate,
+        endDate,
+        search,
+        status,
+        page: page ? parseInt(String(page), 10) : undefined,
+        limit: limit ? parseInt(String(limit), 10) : undefined,
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Advance payments fetched successfully',
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 }
+
 
