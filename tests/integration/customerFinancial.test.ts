@@ -450,4 +450,128 @@ describe('Customer Account & Financial Ledger API Tests', () => {
       expect(res.body.error.code).toBe('INVOICE_ALREADY_PAID');
     });
   });
+
+  describe('Invoice Advance Deposit & Migrated FIFO Endpoints', () => {
+    it('1. POST /api/v1/invoices should create invoice with advance_paid deposit and calculate remaining balance', async () => {
+      const res = await getTestAgent()
+        .post('/api/v1/invoices')
+        .set('Authorization', `Bearer ${authToken}`)
+        .set('x-company-id', companyId)
+        .send({
+          customer_id: customerId,
+          customer_name: 'Angad KT',
+          service: 'Visa Services',
+          issue_date: '2026-09-03',
+          due_date: '2026-09-10',
+          grand_total: 2339.0,
+          subtotal: 2227.62,
+          vat: 111.38,
+          advance_paid: 300.0,
+          lead_by: 'Ahmed',
+          items: [{ description: 'Visa Services', qty: 1, rate: 2227.62, tax: 5 }],
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.advance_paid).toBe(300.0);
+      expect(res.body.data.paid).toBe(300.0);
+      expect(res.body.data.remaining).toBe(2039.0);
+      expect(res.body.data.status).toBe('Partially Paid');
+    });
+
+    it('2. GET /api/v1/invoices/outstanding should list overdue and due soon open invoices', async () => {
+      // Overdue Invoice (due date in past)
+      await InvoiceModel.create({
+        companyId: new Types.ObjectId(companyId),
+        invoice_number: 'INV-OVERDUE-01',
+        customer_name: 'Customer Overdue',
+        issue_date: '2026-08-01',
+        due_date: '2026-08-10',
+        grand_total: 1000.0,
+        paid_amount: 200.0,
+        balance_amount: 800.0,
+        status: 'Partially Paid',
+        lead_by: 'Sameer',
+        items: [{ description: 'Overdue service', qty: 1, rate: 1000 }],
+      });
+
+      // Due soon Invoice (due date in future)
+      await InvoiceModel.create({
+        companyId: new Types.ObjectId(companyId),
+        invoice_number: 'INV-DUESOON-01',
+        customer_name: 'Customer Due Soon',
+        issue_date: '2026-09-01',
+        due_date: '2026-12-31',
+        grand_total: 500.0,
+        paid_amount: 0,
+        balance_amount: 500.0,
+        status: 'Pending',
+        lead_by: 'Sameer',
+        items: [{ description: 'Future service', qty: 1, rate: 500 }],
+      });
+
+      const res = await getTestAgent()
+        .get('/api/v1/invoices/outstanding')
+        .set('Authorization', `Bearer ${authToken}`)
+        .set('x-company-id', companyId);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.length).toBeGreaterThanOrEqual(2);
+      const overdueItem = res.body.data.find((i: any) => i.invoiceId === 'INV-OVERDUE-01');
+      expect(overdueItem).toBeDefined();
+      expect(overdueItem.outstanding).toBe(800.0);
+      expect(overdueItem.status).toBe('Overdue');
+      expect(overdueItem.daysOverdue).toBeGreaterThan(0);
+
+      const dueSoonItem = res.body.data.find((i: any) => i.invoiceId === 'INV-DUESOON-01');
+      expect(dueSoonItem).toBeDefined();
+      expect(dueSoonItem.outstanding).toBe(500.0);
+      expect(dueSoonItem.status).toBe('Due Soon');
+      expect(dueSoonItem.daysOverdue).toBe(0);
+    });
+
+    it('3. GET /api/v1/receipts should return applied and advance per receipt', async () => {
+      await ReceiptModel.create({
+        companyId: new Types.ObjectId(companyId),
+        customerId: new Types.ObjectId(customerId),
+        customerName: 'Nithin paul volga',
+        reference: 'REC-TEST-007',
+        amount: 2000.0,
+        date: '2026-09-03',
+        paymentMethod: 'Bank Transfer',
+        status: 'Received',
+        unallocated_amount: 500.0,
+        allocations: [{ invoice_id: 'INV-001', allocated_amount: 1500.0, remaining_invoice_balance: 0 }],
+      });
+
+      const res = await getTestAgent()
+        .get('/api/v1/receipts')
+        .set('Authorization', `Bearer ${authToken}`)
+        .set('x-company-id', companyId);
+
+      expect(res.status).toBe(200);
+      const target = res.body.data.find((r: any) => r.reference_number === 'REC-TEST-007');
+      expect(target).toBeDefined();
+      expect(target.applied).toBe(1500.0);
+      expect(target.advance).toBe(500.0);
+    });
+
+    it('4. GET /api/v1/dashboard/financial-summary should compute aggregated KPIs across all customers', async () => {
+      const res = await getTestAgent()
+        .get('/api/v1/dashboard/financial-summary')
+        .set('Authorization', `Bearer ${authToken}`)
+        .set('x-company-id', companyId);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toHaveProperty('totalRevenue');
+      expect(res.body.data).toHaveProperty('totalReceived');
+      expect(res.body.data).toHaveProperty('outstanding');
+      expect(res.body.data).toHaveProperty('advanceTotal');
+      expect(res.body.data).toHaveProperty('chartData');
+      expect(res.body.data).toHaveProperty('employeeSales');
+      expect(Array.isArray(res.body.data.chartData)).toBe(true);
+      expect(res.body.data.chartData.length).toBe(7);
+    });
+  });
 });

@@ -20,4 +20,16 @@ const controller = new DashboardController();
  */
 router.get('/', authenticate, authorizeCompany, controller.getMetrics);
 
+/**
+ * @openapi
+ * /dashboard/financial-summary:
+ *   get:
+ *     tags:
+ *       - Dashboard
+ *     summary: Get dashboard financial summary and KPIs across all customers
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get('/financial-summary', authenticate, authorizeCompany, controller.getFinancialSummary);
+
 export default router;

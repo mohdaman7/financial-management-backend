@@ -17,4 +17,14 @@ export class DashboardController {
       next(error);
     }
   };
+
+  getFinancialSummary = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const companyId = req.companyId as string;
+      const summary = await this.getDashboardService().getFinancialSummary(companyId);
+      res.status(200).json(ResponseFormatter.success(summary));
+    } catch (error) {
+      next(error);
+    }
+  };
 }

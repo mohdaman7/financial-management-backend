@@ -1,7 +1,11 @@
 import { InvoiceModel } from '../../../finance/infrastructure/models/Invoice.model';
+import { ReceiptModel } from '../../../finance/infrastructure/models/Receipt.model';
+import { TravelInvoiceModel } from '../../../travel/infrastructure/models/TravelInvoice.model';
 import { AttendanceRepository } from '../../../attendance/infrastructure/repositories/attendance.repository';
 import { EmployeeRepository } from '../../../employee/infrastructure/repositories/employee.repository';
 import { TransactionRepository } from '../../../finance/infrastructure/repositories/transaction.repository';
+import { CurrencyPrecision } from '@shared/utils/currencyPrecision';
+import { Types } from 'mongoose';
 
 export class DashboardService {
   constructor(
@@ -135,6 +139,164 @@ export class DashboardService {
         ticketsIssued,
         activeTours,
       },
+    };
+  }
+
+  async getFinancialSummary(companyId?: string): Promise<{
+    totalRevenue: number;
+    totalReceived: number;
+    outstanding: number;
+    advanceTotal: number;
+    todaySales: number;
+    monthSales: number;
+    paidCount: number;
+    totalInvoices: number;
+    avgRevenue: number;
+    conversionRate: string;
+    chartData: Array<{ day: string; revenue: number; bookings: number }>;
+    employeeSales: Array<{ name: string; value: number }>;
+  }> {
+    const companyObjectId =
+      companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined;
+    const queryCompany: Record<string, any> = companyObjectId
+      ? { $or: [{ companyId: companyObjectId }, { companyId: null }] }
+      : {};
+
+    const [invoices, travelInvoices, receipts] = await Promise.all([
+      InvoiceModel.find({
+        ...queryCompany,
+        status: { $nin: ['Cancelled', 'cancelled', 'Void', 'void'] },
+      }).lean().exec(),
+      TravelInvoiceModel.find(queryCompany).lean().exec(),
+      ReceiptModel.find({
+        ...queryCompany,
+        status: { $nin: ['Cancelled', 'cancelled'] },
+      }).lean().exec(),
+    ]);
+
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    let totalRevenue = 0;
+    let todaySales = 0;
+    let monthSales = 0;
+    let paidCount = 0;
+    let invoiceDepositTotal = 0;
+
+    const employeeMap = new Map<string, number>();
+
+    const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const chartMap = new Map<string, { revenue: number; bookings: number }>();
+    ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach((d) => {
+      chartMap.set(d, { revenue: 0, bookings: 0 });
+    });
+
+    for (const inv of invoices) {
+      const amount = CurrencyPrecision.round(inv.grand_total || 0);
+      totalRevenue += amount;
+      if (inv.advance_paid && inv.advance_paid > 0) {
+        invoiceDepositTotal += inv.advance_paid;
+      }
+
+      const invDate = inv.issue_date || (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : '');
+      const rawDate = inv.issue_date ? new Date(inv.issue_date) : inv.createdAt ? new Date(inv.createdAt) : now;
+
+      if (invDate === todayStr) {
+        todaySales += amount;
+      }
+      if (rawDate.getFullYear() === currentYear && rawDate.getMonth() === currentMonth) {
+        monthSales += amount;
+      }
+
+      if (inv.status === 'Paid' || (inv.balance_amount !== undefined && inv.balance_amount <= 0 && amount > 0)) {
+        paidCount++;
+      }
+
+      const emp = inv.lead_owner || inv.lead_by || 'Unassigned';
+      employeeMap.set(emp, CurrencyPrecision.round((employeeMap.get(emp) || 0) + amount));
+
+      const dayName = daysOfWeek[rawDate.getDay()];
+      const dayData = chartMap.get(dayName);
+      if (dayData) {
+        dayData.revenue = CurrencyPrecision.round(dayData.revenue + amount);
+      }
+    }
+
+    for (const trInv of travelInvoices) {
+      const amount = CurrencyPrecision.round(trInv.amount || 0);
+      totalRevenue += amount;
+
+      const rawDate = trInv.createdAt ? new Date(trInv.createdAt) : now;
+      const invDate = rawDate.toISOString().split('T')[0];
+
+      if (invDate === todayStr) {
+        todaySales += amount;
+      }
+      if (rawDate.getFullYear() === currentYear && rawDate.getMonth() === currentMonth) {
+        monthSales += amount;
+      }
+
+      if (trInv.status === 'paid') {
+        paidCount++;
+      }
+
+      const emp = (trInv as any).leadOwner || (trInv as any).leadBy || 'Travel Team';
+      employeeMap.set(emp, CurrencyPrecision.round((employeeMap.get(emp) || 0) + amount));
+
+      const dayName = daysOfWeek[rawDate.getDay()];
+      const dayData = chartMap.get(dayName);
+      if (dayData) {
+        dayData.bookings = CurrencyPrecision.round(dayData.bookings + amount);
+        dayData.revenue = CurrencyPrecision.round(dayData.revenue + amount);
+      }
+    }
+
+    let receiptTotal = 0;
+    for (const rec of receipts) {
+      receiptTotal += CurrencyPrecision.round(rec.amount || 0);
+    }
+
+    const totalReceived = CurrencyPrecision.round(receiptTotal + invoiceDepositTotal);
+    totalRevenue = CurrencyPrecision.round(totalRevenue);
+    todaySales = CurrencyPrecision.round(todaySales);
+    monthSales = CurrencyPrecision.round(monthSales);
+
+    const outstanding = CurrencyPrecision.round(Math.max(0, totalRevenue - totalReceived));
+    const advanceTotal = CurrencyPrecision.round(Math.max(0, totalReceived - totalRevenue));
+    const totalInvoices = invoices.length + travelInvoices.length;
+    const avgRevenue = totalInvoices > 0 ? CurrencyPrecision.round(totalRevenue / totalInvoices) : 0;
+    const conversionRate = totalInvoices > 0 ? ((paidCount / totalInvoices) * 100).toFixed(1) : '0.0';
+
+    const chartData = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => {
+      const entry = chartMap.get(day) || { revenue: 0, bookings: 0 };
+      return {
+        day,
+        revenue: entry.revenue,
+        bookings: entry.bookings,
+      };
+    });
+
+    const employeeSales: Array<{ name: string; value: number }> = [];
+    employeeMap.forEach((value, name) => {
+      employeeSales.push({ name, value: CurrencyPrecision.round(value) });
+    });
+    employeeSales.sort((a, b) => b.value - a.value);
+
+    return {
+      totalRevenue,
+      totalReceived,
+      outstanding,
+      advanceTotal,
+      todaySales,
+      monthSales,
+      paidCount,
+      totalInvoices,
+      avgRevenue,
+      conversionRate,
+      chartData,
+      employeeSales,
     };
   }
 }

@@ -402,6 +402,38 @@ export class CustomerService {
       ReceiptModel.find(receiptQuery).sort({ createdAt: 1 }).exec(),
     ]);
 
+    const formattedReceipts: Array<{
+      id: string;
+      date: string;
+      refNo: string;
+      type: 'receipt';
+      description: string;
+      debit: number;
+      credit: number;
+      status: string;
+      createdAt: Date;
+    }> = receipts.map((rec) => {
+      const recDate = rec.date || (rec.createdAt ? rec.createdAt.toISOString().split('T')[0] : '');
+      const desc =
+        rec.notes ||
+        (rec.paymentMethod ? `${rec.paymentMethod} - Advance Payment` : 'Receipt Payment');
+      const isAdvance =
+        (rec.unallocated_amount !== undefined && rec.unallocated_amount > 0) ||
+        rec.allocations?.length === 0;
+
+      return {
+        id: rec._id.toString(),
+        date: recDate,
+        refNo: rec.reference || 'REC',
+        type: 'receipt' as const,
+        description: desc,
+        debit: 0.0,
+        credit: CurrencyPrecision.round(rec.amount || 0),
+        status: isAdvance ? 'advance_credit' : (rec.status || 'received').toLowerCase(),
+        createdAt: rec.createdAt,
+      };
+    });
+
     const formattedInvoices: Array<{
       id: string;
       date: string;
@@ -430,6 +462,20 @@ export class CustomerService {
         status: (inv.status || 'pending').toLowerCase().replace(/\s+/g, '_'),
         createdAt: inv.createdAt,
       });
+
+      if (inv.advance_paid && inv.advance_paid > 0) {
+        formattedReceipts.push({
+          id: `dep-${inv._id.toString()}`,
+          date: invDate,
+          refNo: `DEP-${inv.invoice_number || inv.custom_id || 'INV'}`,
+          type: 'receipt' as const,
+          description: `Advance Deposit — Paid at Invoice Creation (${inv.invoice_number || inv.custom_id || 'INV'})`,
+          debit: 0.0,
+          credit: CurrencyPrecision.round(inv.advance_paid),
+          status: 'received',
+          createdAt: new Date(new Date(inv.createdAt).getTime() + 1),
+        });
+      }
     }
 
     for (const inv of travelInvoices) {
@@ -446,28 +492,6 @@ export class CustomerService {
         createdAt: inv.createdAt,
       });
     }
-
-    const formattedReceipts = receipts.map((rec) => {
-      const recDate = rec.date || (rec.createdAt ? rec.createdAt.toISOString().split('T')[0] : '');
-      const desc =
-        rec.notes ||
-        (rec.paymentMethod ? `${rec.paymentMethod} - Advance Payment` : 'Receipt Payment');
-      const isAdvance =
-        (rec.unallocated_amount !== undefined && rec.unallocated_amount > 0) ||
-        rec.allocations?.length === 0;
-
-      return {
-        id: rec._id.toString(),
-        date: recDate,
-        refNo: rec.reference || 'REC',
-        type: 'receipt' as const,
-        description: desc,
-        debit: 0.0,
-        credit: CurrencyPrecision.round(rec.amount || 0),
-        status: isAdvance ? 'advance_credit' : (rec.status || 'received').toLowerCase(),
-        createdAt: rec.createdAt,
-      };
-    });
 
     return { invoices: formattedInvoices, receipts: formattedReceipts };
   }

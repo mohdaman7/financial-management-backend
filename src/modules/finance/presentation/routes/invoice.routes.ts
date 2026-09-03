@@ -74,6 +74,18 @@ router.get('/', authenticate, authorizeCompany, controller.listInvoices);
 
 /**
  * @openapi
+ * /invoices/outstanding:
+ *   get:
+ *     tags:
+ *       - Generate Invoice API
+ *     summary: Fetch outstanding invoices with overdue calculations
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get('/outstanding', authenticate, authorizeCompany, controller.getOutstandingInvoices);
+
+/**
+ * @openapi
  * /invoices/{id}:
  *   get:
  *     tags:

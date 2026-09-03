@@ -57,6 +57,35 @@ export class InvoiceController {
     }
   };
 
+  getOutstandingInvoices = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const companyId = req.companyId as string | undefined;
+      const { search, status, start_date, end_date } = req.query as Record<
+        string,
+        string | undefined
+      >;
+
+      const result = await this.getInvoiceService().getOutstandingInvoices(companyId, {
+        search,
+        status,
+        start_date,
+        end_date,
+      });
+
+      res.status(200).json({
+        success: true,
+        data: result.data,
+        summary: result.summary,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
   getInvoiceById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const id = req.params.id as string;

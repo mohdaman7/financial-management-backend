@@ -66,11 +66,15 @@ export interface AdvancePaymentItem {
   advanceId: string;
   customerName: string;
   customerId: string;
+  date: string;
   dateReceived: string;
   paymentMethod: string;
+  reference: string;
   referenceTransaction: string;
+  amount: number;
   totalReceived: number;
   allocatedAmount: number;
+  balance: number;
   unallocatedBalance: number;
   status: 'Unallocated' | 'Partially Allocated' | 'Fully Allocated' | string;
 }
@@ -1083,11 +1087,15 @@ export class FinanceService {
       advanceId: adv.advanceId,
       customerName: adv.customerName,
       customerId: adv.customerId,
+      date: adv.dateReceived,
       dateReceived: adv.dateReceived,
       paymentMethod: adv.paymentMethod,
+      reference: adv.referenceTransaction,
       referenceTransaction: adv.referenceTransaction,
+      amount: adv.totalReceived,
       totalReceived: adv.totalReceived,
       allocatedAmount: adv.allocatedAmount,
+      balance: adv.unallocatedBalance,
       unallocatedBalance: adv.unallocatedBalance,
       status: adv.status,
     }));

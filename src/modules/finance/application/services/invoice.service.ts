@@ -10,7 +10,9 @@ import {
   IAdditionItem,
   IDeductionItem,
   IStatementEntry,
+  InvoiceModel,
 } from '../../infrastructure/models/Invoice.model';
+import { TravelInvoiceModel } from '../../../travel/infrastructure/models/TravelInvoice.model';
 import { AppError } from '@shared/errors/AppError';
 import { PdfGenerator } from '@shared/utils/pdfGenerator';
 import { CurrencyPrecision } from '@shared/utils/currencyPrecision';
@@ -45,6 +47,8 @@ export interface CreateInvoiceDTO {
   vat?: number;
   paid_amount?: number;
   paidAmount?: number;
+  advance_paid?: number;
+  advancePaid?: number;
   advance_amount?: number;
   advanceAmount?: number;
   advance?: number;
@@ -201,19 +205,27 @@ export class InvoiceService {
       computedItems.reduce((acc, it) => acc + (it.netProfit || 0), 0) + additions - deductions,
     );
 
+    const advance_paid = CurrencyPrecision.round(
+      Number(
+        data.advance_paid ??
+        (data as any).advancePaid ??
+        data.advance_amount ??
+        (data as any).advanceAmount ??
+        0
+      )
+    );
+
     let paid_amount = 0;
     const explicitPaid =
       data.paid_amount !== undefined && data.paid_amount !== null
         ? Number(data.paid_amount)
         : data.paidAmount !== undefined && data.paidAmount !== null
           ? Number(data.paidAmount)
-          : data.advance_amount !== undefined && data.advance_amount !== null
-            ? Number(data.advance_amount)
-            : data.advanceAmount !== undefined && data.advanceAmount !== null
-              ? Number(data.advanceAmount)
-              : data.advance !== undefined && data.advance !== null
-                ? Number(data.advance)
-                : undefined;
+          : advance_paid > 0
+            ? advance_paid
+            : data.advance !== undefined && data.advance !== null
+              ? Number(data.advance)
+              : undefined;
 
     if (explicitPaid !== undefined && !isNaN(explicitPaid)) {
       paid_amount = explicitPaid;
@@ -269,6 +281,7 @@ export class InvoiceService {
       total_profit,
       paid_amount,
       balance_amount,
+      advance_paid,
       status,
       service,
     };
@@ -351,6 +364,7 @@ export class InvoiceService {
       total_profit: financials.total_profit,
       paid_amount: financials.paid_amount,
       balance_amount: financials.balance_amount,
+      advance_paid: financials.advance_paid || 0,
       service: financials.service,
 
       period_start: data.period_start || '',
@@ -380,13 +394,16 @@ export class InvoiceService {
     const formattedList = invoices.map((inv) => ({
       id: inv.custom_id || inv._id.toString(),
       invoice_number: inv.invoice_number,
+      customer_id: inv.customer_id ? inv.customer_id.toString() : '',
       customer_name: inv.customer_name,
       service: inv.service || (inv.items?.[0]?.description ?? inv.category ?? 'General'),
       invoice_date: inv.issue_date,
+      due_date: inv.due_date,
       lead_owner: inv.lead_owner || inv.lead_by,
       subtotal: inv.subtotal,
       vat: inv.vat,
       total: inv.grand_total,
+      advance_paid: inv.advance_paid || 0,
       paid: inv.paid_amount,
       remaining: inv.balance_amount,
       status: inv.status,
@@ -399,6 +416,147 @@ export class InvoiceService {
         page,
         limit,
         total_pages,
+      },
+    };
+  }
+
+  async getOutstandingInvoices(
+    companyId?: string,
+    filters: { search?: string; status?: string; start_date?: string; end_date?: string } = {},
+  ): Promise<{
+    data: Array<{
+      invoiceId: string;
+      customerName: string;
+      invoiceDate: string;
+      dueDate: string;
+      total: number;
+      paid: number;
+      outstanding: number;
+      daysOverdue: number;
+      status: string;
+    }>;
+    summary: {
+      totalOutstanding: number;
+      totalInvoices: number;
+      overdueCount: number;
+    };
+  }> {
+    const companyObjectId =
+      companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined;
+    const queryCompany: Record<string, any> = companyObjectId ? { companyId: companyObjectId } : {};
+
+    const [stdInvoices, travelInvoices] = await Promise.all([
+      InvoiceModel.find({
+        ...queryCompany,
+        status: { $nin: ['Cancelled', 'cancelled', 'Void', 'void'] },
+      })
+        .sort({ issue_date: 1, createdAt: 1 })
+        .lean()
+        .exec(),
+      TravelInvoiceModel.find(queryCompany)
+        .sort({ createdAt: 1 })
+        .lean()
+        .exec(),
+    ]);
+
+    const list: Array<{
+      invoiceId: string;
+      customerName: string;
+      invoiceDate: string;
+      dueDate: string;
+      total: number;
+      paid: number;
+      outstanding: number;
+      daysOverdue: number;
+      status: string;
+    }> = [];
+
+    const now = Date.now();
+
+    for (const inv of stdInvoices) {
+      const total = CurrencyPrecision.round(inv.grand_total || 0);
+      const paid = CurrencyPrecision.round(inv.paid_amount || 0);
+      const outstanding = CurrencyPrecision.round(Math.max(0, total - paid));
+      if (outstanding <= 0) continue;
+
+      const dueDateStr = inv.due_date || inv.issue_date || '';
+      const dueTimestamp = dueDateStr ? new Date(dueDateStr).getTime() : now;
+      const diffDays = Math.ceil((now - dueTimestamp) / (1000 * 60 * 60 * 24));
+      const daysOverdue = Math.max(0, diffDays);
+      const status = daysOverdue > 0 ? 'Overdue' : 'Due Soon';
+
+      list.push({
+        invoiceId: inv.invoice_number || inv.custom_id || inv._id.toString(),
+        customerName: inv.customer_name || 'Customer',
+        invoiceDate: inv.issue_date || '',
+        dueDate: dueDateStr,
+        total,
+        paid,
+        outstanding,
+        daysOverdue,
+        status,
+      });
+    }
+
+    for (const trInv of travelInvoices) {
+      const total = CurrencyPrecision.round(trInv.amount || 0);
+      const paid = CurrencyPrecision.round(
+        (trInv.payments || []).reduce((sum: number, p: any) => sum + (p.amount || 0), 0),
+      );
+      const outstanding = CurrencyPrecision.round(Math.max(0, total - paid));
+      if (outstanding <= 0) continue;
+
+      const dueDateStr = trInv.dueDate ? new Date(trInv.dueDate).toISOString().split('T')[0] : '';
+      const dueTimestamp = trInv.dueDate ? new Date(trInv.dueDate).getTime() : now;
+      const diffDays = Math.ceil((now - dueTimestamp) / (1000 * 60 * 60 * 24));
+      const daysOverdue = Math.max(0, diffDays);
+      const status = daysOverdue > 0 ? 'Overdue' : 'Due Soon';
+
+      list.push({
+        invoiceId: trInv.invoiceNumber || trInv._id.toString(),
+        customerName: (trInv as any).customerName || 'Travel Client',
+        invoiceDate: trInv.createdAt ? new Date(trInv.createdAt).toISOString().split('T')[0] : '',
+        dueDate: dueDateStr,
+        total,
+        paid,
+        outstanding,
+        daysOverdue,
+        status,
+      });
+    }
+
+    let filtered = list;
+
+    if (filters.search && filters.search.trim()) {
+      const q = filters.search.trim().toLowerCase();
+      filtered = filtered.filter(
+        (i) => i.invoiceId.toLowerCase().includes(q) || i.customerName.toLowerCase().includes(q),
+      );
+    }
+
+    if (filters.status && filters.status.trim()) {
+      const st = filters.status.trim().toLowerCase();
+      filtered = filtered.filter((i) => i.status.toLowerCase() === st);
+    }
+
+    if (filters.start_date) {
+      filtered = filtered.filter((i) => i.invoiceDate >= filters.start_date!);
+    }
+    if (filters.end_date) {
+      filtered = filtered.filter((i) => i.invoiceDate <= filters.end_date!);
+    }
+
+    const totalOutstanding = CurrencyPrecision.round(
+      filtered.reduce((sum, i) => sum + i.outstanding, 0),
+    );
+    const overdueCount = filtered.filter((i) => i.daysOverdue > 0).length;
+
+    return {
+      data: filtered,
+      summary: {
+        totalOutstanding,
+        totalInvoices: filtered.length,
+        overdueCount,
       },
     };
   }
@@ -491,6 +649,8 @@ export class InvoiceService {
       total_profit: financials.total_profit,
       paid_amount: financials.paid_amount,
       balance_amount: financials.balance_amount,
+      advance_paid:
+        financials.advance_paid !== undefined ? financials.advance_paid : existing.advance_paid || 0,
       service: financials.service,
     };
 
@@ -565,14 +725,19 @@ export class InvoiceService {
       invoice_number: invoice.invoice_number,
       file_no: invoice.file_no || invoice.invoice_number,
       invoice_type: invoice.invoice_type || 'standard',
+      customer_id: invoice.customer_id ? invoice.customer_id.toString() : '',
       customer_name: invoice.customer_name,
       contact_name: invoice.contact_name || invoice.customer_name,
       customer_phone: invoice.customer_phone || '',
+      customer_email: invoice.customer_email || '',
+      customer_address: invoice.customer_address || '',
       care_of: invoice.care_of || '',
       lead_by: invoice.lead_by,
+      lead_owner: invoice.lead_owner || invoice.lead_by,
       employee: invoice.employee || 'Staff',
       category: invoice.category || 'Visa Services',
       issue_date: invoice.issue_date,
+      invoice_date: invoice.issue_date,
       due_date: invoice.due_date,
       payment_terms: invoice.payment_terms,
       status: invoice.status,
@@ -591,9 +756,13 @@ export class InvoiceService {
       additions: invoice.additions,
       deductions: invoice.deductions,
       grand_total: invoice.grand_total,
+      total: invoice.grand_total,
       total_profit: invoice.total_profit,
+      advance_paid: invoice.advance_paid || 0,
       paid_amount: invoice.paid_amount,
+      paid: invoice.paid_amount,
       balance_amount: invoice.balance_amount,
+      remaining: invoice.balance_amount,
       created_at: invoice.createdAt ? invoice.createdAt.toISOString() : new Date().toISOString(),
       updated_at: invoice.updatedAt ? invoice.updatedAt.toISOString() : new Date().toISOString(),
     };

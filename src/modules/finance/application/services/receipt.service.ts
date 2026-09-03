@@ -58,13 +58,46 @@ export class ReceiptService {
     companyId?: string,
     filters: ReceiptFilters = {},
     pagination: PaginationOptions = { page: 1, limit: 20 },
-  ): Promise<{ receipts: IReceipt[]; meta: { total: number; page: number; limit: number } }> {
+  ): Promise<{ receipts: any[]; meta: { total: number; page: number; limit: number } }> {
     const { receipts, total, page, limit } = await this.receiptRepository.findFiltered(
       companyId,
       filters,
       pagination,
     );
-    return { receipts, meta: { total, page, limit } };
+
+    const formatted = receipts.map((rec) => {
+      const recObj = rec.toObject ? rec.toObject() : rec;
+      const allocatedTotal = CurrencyPrecision.round(
+        (recObj.allocations || []).reduce(
+          (acc: number, a: any) => acc + (a.allocated_amount || 0),
+          0,
+        ),
+      );
+      const applied =
+        allocatedTotal > 0
+          ? allocatedTotal
+          : recObj.unallocated_amount !== undefined
+          ? CurrencyPrecision.round(Math.max(0, recObj.amount - recObj.unallocated_amount))
+          : recObj.amount;
+      const advance =
+        recObj.unallocated_amount !== undefined
+          ? recObj.unallocated_amount
+          : CurrencyPrecision.round(Math.max(0, recObj.amount - applied));
+
+      return {
+        ...recObj,
+        id: recObj.reference || recObj._id?.toString(),
+        customer_id: recObj.customerId ? recObj.customerId.toString() : '',
+        customer_name: recObj.customerName || '',
+        invoice_id: recObj.invoiceId ? recObj.invoiceId.toString() : '-',
+        payment_method: recObj.paymentMethod,
+        reference_number: recObj.reference,
+        applied,
+        advance,
+      };
+    });
+
+    return { receipts: formatted, meta: { total, page, limit } };
   }
 
   async getReceiptById(id: string): Promise<IReceipt> {
