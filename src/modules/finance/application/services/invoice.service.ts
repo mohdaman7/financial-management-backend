@@ -526,18 +526,30 @@ export class InvoiceService {
       return {
         id: inv.custom_id || inv._id.toString(),
         invoice_number: inv.invoice_number,
+        invoiceNumber: inv.invoice_number,
         customer_id: inv.customer_id ? inv.customer_id.toString() : '',
+        customerId: inv.customer_id ? inv.customer_id.toString() : '',
         customer_name: inv.customer_name,
+        customerName: inv.customer_name,
         service: inv.service || (inv.items?.[0]?.description ?? inv.category ?? 'General'),
         invoice_date: inv.issue_date,
+        invoiceDate: inv.issue_date,
         due_date: inv.due_date,
+        dueDate: inv.due_date,
         lead_owner: inv.lead_owner || inv.lead_by,
         subtotal: inv.subtotal,
         vat: inv.vat,
         total: inv.grand_total,
+        totalAmount: inv.grand_total,
+        grand_total: inv.grand_total,
         advance_paid: inv.advance_paid || 0,
+        advancePaid: inv.advance_paid || 0,
         paid,
+        paid_amount: paid,
+        paidAmount: paid,
+        outstanding: remaining,
         remaining,
+        balance_amount: remaining,
         status,
       };
     });
@@ -557,17 +569,7 @@ export class InvoiceService {
     companyId?: string,
     filters: { search?: string; status?: string; start_date?: string; end_date?: string } = {},
   ): Promise<{
-    data: Array<{
-      invoiceId: string;
-      customerName: string;
-      invoiceDate: string;
-      dueDate: string;
-      total: number;
-      paid: number;
-      outstanding: number;
-      daysOverdue: number;
-      status: string;
-    }>;
+    data: Array<any>;
     summary: {
       totalOutstanding: number;
       totalInvoices: number;
@@ -593,17 +595,7 @@ export class InvoiceService {
       this.computeFifoAllocationsForInvoices(companyId),
     ]);
 
-    const list: Array<{
-      invoiceId: string;
-      customerName: string;
-      invoiceDate: string;
-      dueDate: string;
-      total: number;
-      paid: number;
-      outstanding: number;
-      daysOverdue: number;
-      status: string;
-    }> = [];
+    const list: Array<any> = [];
 
     const now = Date.now();
 
@@ -625,13 +617,29 @@ export class InvoiceService {
       const status = daysOverdue > 0 ? 'Overdue' : 'Due Soon';
 
       list.push({
+        id: inv.custom_id || inv._id.toString(),
         invoiceId: inv.invoice_number || inv.custom_id || inv._id.toString(),
+        invoice_number: inv.invoice_number,
+        invoiceNumber: inv.invoice_number,
         customerName: inv.customer_name || 'Customer',
+        customer_name: inv.customer_name || 'Customer',
+        customerId: inv.customer_id ? inv.customer_id.toString() : '',
+        customer_id: inv.customer_id ? inv.customer_id.toString() : '',
         invoiceDate: inv.issue_date || '',
+        invoice_date: inv.issue_date || '',
         dueDate: dueDateStr,
+        due_date: dueDateStr,
         total,
+        totalAmount: total,
+        grand_total: total,
+        advance_paid: inv.advance_paid || 0,
+        advancePaid: inv.advance_paid || 0,
         paid,
+        paidAmount: paid,
+        paid_amount: paid,
         outstanding,
+        remaining: outstanding,
+        balance_amount: outstanding,
         daysOverdue,
         status,
       });
@@ -657,13 +665,29 @@ export class InvoiceService {
       const status = daysOverdue > 0 ? 'Overdue' : 'Due Soon';
 
       list.push({
+        id: trInv._id.toString(),
         invoiceId: trInv.invoiceNumber || trInv._id.toString(),
+        invoice_number: trInv.invoiceNumber || '',
+        invoiceNumber: trInv.invoiceNumber || '',
         customerName: (trInv as any).customerName || 'Travel Client',
+        customer_name: (trInv as any).customerName || 'Travel Client',
+        customerId: (trInv as any).customerId ? (trInv as any).customerId.toString() : '',
+        customer_id: (trInv as any).customerId ? (trInv as any).customerId.toString() : '',
         invoiceDate: trInv.createdAt ? new Date(trInv.createdAt).toISOString().split('T')[0] : '',
+        invoice_date: trInv.createdAt ? new Date(trInv.createdAt).toISOString().split('T')[0] : '',
         dueDate: dueDateStr,
+        due_date: dueDateStr,
         total,
+        totalAmount: total,
+        grand_total: total,
+        advance_paid: (trInv as any).advance_paid || 0,
+        advancePaid: (trInv as any).advance_paid || 0,
         paid,
+        paidAmount: paid,
+        paid_amount: paid,
         outstanding,
+        remaining: outstanding,
+        balance_amount: outstanding,
         daysOverdue,
         status,
       });
@@ -912,12 +936,16 @@ export class InvoiceService {
       deductions: invoice.deductions,
       grand_total: invoice.grand_total,
       total: invoice.grand_total,
+      totalAmount: invoice.grand_total,
       total_profit: invoice.total_profit,
       advance_paid: invoice.advance_paid || 0,
+      advancePaid: invoice.advance_paid || 0,
       paid_amount: paid,
       paid,
+      paidAmount: paid,
       balance_amount: remaining,
       remaining,
+      outstanding: remaining,
       created_at: invoice.createdAt ? invoice.createdAt.toISOString() : new Date().toISOString(),
       updated_at: invoice.updatedAt ? invoice.updatedAt.toISOString() : new Date().toISOString(),
     };
