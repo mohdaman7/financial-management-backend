@@ -12,6 +12,7 @@ import {
   IStatementEntry,
   InvoiceModel,
 } from '../../infrastructure/models/Invoice.model';
+import { ReceiptModel } from '../../infrastructure/models/Receipt.model';
 import { TravelInvoiceModel } from '../../../travel/infrastructure/models/TravelInvoice.model';
 import { AppError } from '@shared/errors/AppError';
 import { PdfGenerator } from '@shared/utils/pdfGenerator';
@@ -377,6 +378,129 @@ export class InvoiceService {
     return this.formatInvoiceDetail(invoice);
   }
 
+  private async computeFifoAllocationsForInvoices(
+    companyId?: string,
+  ): Promise<Map<string, { paid: number; remaining: number; status: string }>> {
+    const companyObjectId =
+      companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined;
+    const queryCompany: Record<string, any> = companyObjectId ? { companyId: companyObjectId } : {};
+
+    const [stdInvoices, travelInvoices, receipts] = await Promise.all([
+      InvoiceModel.find({
+        ...queryCompany,
+        status: { $nin: ['Cancelled', 'cancelled', 'Void', 'void'] },
+      })
+        .sort({ issue_date: 1, createdAt: 1 })
+        .lean()
+        .exec(),
+      TravelInvoiceModel.find(queryCompany)
+        .sort({ createdAt: 1 })
+        .lean()
+        .exec(),
+      ReceiptModel.find({
+        ...queryCompany,
+        status: { $nin: ['Cancelled', 'cancelled'] },
+      })
+        .sort({ date: 1, createdAt: 1 })
+        .lean()
+        .exec(),
+    ]);
+
+    const customerInvoicesMap = new Map<
+      string,
+      Array<{ id: string; total: number; advance_paid: number }>
+    >();
+    const allocationResultMap = new Map<string, { paid: number; remaining: number; status: string }>();
+
+    for (const inv of stdInvoices) {
+      const custKey = inv.customer_id
+        ? inv.customer_id.toString()
+        : (inv.customer_name || '').trim().toLowerCase();
+      if (!custKey) continue;
+      const list = customerInvoicesMap.get(custKey) || [];
+      const basePaid = CurrencyPrecision.round(
+        inv.advance_paid !== undefined && inv.advance_paid > 0
+          ? inv.advance_paid
+          : (inv.paid_amount || 0),
+      );
+      list.push({
+        id: inv._id.toString(),
+        total: CurrencyPrecision.round(inv.grand_total || 0),
+        advance_paid: basePaid,
+      });
+      customerInvoicesMap.set(custKey, list);
+    }
+
+    for (const trInv of travelInvoices) {
+      const custKey = (trInv as any).customerId
+        ? (trInv as any).customerId.toString()
+        : ((trInv as any).customerName || '').trim().toLowerCase();
+      if (!custKey) continue;
+      const list = customerInvoicesMap.get(custKey) || [];
+      const trPaid = CurrencyPrecision.round(
+        (trInv.payments || []).reduce((sum: number, p: any) => sum + (p.amount || 0), 0),
+      );
+      list.push({
+        id: trInv._id.toString(),
+        total: CurrencyPrecision.round(trInv.amount || 0),
+        advance_paid: trPaid,
+      });
+      customerInvoicesMap.set(custKey, list);
+    }
+
+    const customerReceiptsMap = new Map<string, any[]>();
+    for (const rec of receipts) {
+      const custKey = rec.customerId
+        ? rec.customerId.toString()
+        : (rec.customerName || '').trim().toLowerCase();
+      if (!custKey) continue;
+      const list = customerReceiptsMap.get(custKey) || [];
+      list.push(rec);
+      customerReceiptsMap.set(custKey, list);
+    }
+
+    customerInvoicesMap.forEach((invoicesList, custKey) => {
+      const receiptsList = customerReceiptsMap.get(custKey) || [];
+
+      const invoiceDues = invoicesList.map((inv) => {
+        const initialPaid = inv.advance_paid || 0;
+        return {
+          id: inv.id,
+          total: inv.total,
+          advancePaid: initialPaid,
+          allocatedFromReceipts: 0,
+          remainingDue: CurrencyPrecision.round(Math.max(0, inv.total - initialPaid)),
+        };
+      });
+
+      for (const rec of receiptsList) {
+        let availableCredit = CurrencyPrecision.round(rec.amount || 0);
+
+        for (const inv of invoiceDues) {
+          if (inv.remainingDue <= 0 || availableCredit <= 0) continue;
+          const toAllocate = CurrencyPrecision.round(Math.min(inv.remainingDue, availableCredit));
+          inv.allocatedFromReceipts = CurrencyPrecision.round(inv.allocatedFromReceipts + toAllocate);
+          inv.remainingDue = CurrencyPrecision.round(inv.remainingDue - toAllocate);
+          availableCredit = CurrencyPrecision.round(availableCredit - toAllocate);
+        }
+      }
+
+      for (const inv of invoiceDues) {
+        const totalPaid = CurrencyPrecision.round(inv.advancePaid + inv.allocatedFromReceipts);
+        const remaining = CurrencyPrecision.round(Math.max(0, inv.total - totalPaid));
+        let status = 'Pending';
+        if (remaining <= 0 && inv.total > 0) {
+          status = 'Paid';
+        } else if (totalPaid > 0) {
+          status = 'Partially Paid';
+        }
+        allocationResultMap.set(inv.id, { paid: totalPaid, remaining, status });
+      }
+    });
+
+    return allocationResultMap;
+  }
+
   async listInvoices(
     companyId?: string,
     filters: InvoiceFilters = {},
@@ -391,23 +515,32 @@ export class InvoiceService {
       pagination,
     );
 
-    const formattedList = invoices.map((inv) => ({
-      id: inv.custom_id || inv._id.toString(),
-      invoice_number: inv.invoice_number,
-      customer_id: inv.customer_id ? inv.customer_id.toString() : '',
-      customer_name: inv.customer_name,
-      service: inv.service || (inv.items?.[0]?.description ?? inv.category ?? 'General'),
-      invoice_date: inv.issue_date,
-      due_date: inv.due_date,
-      lead_owner: inv.lead_owner || inv.lead_by,
-      subtotal: inv.subtotal,
-      vat: inv.vat,
-      total: inv.grand_total,
-      advance_paid: inv.advance_paid || 0,
-      paid: inv.paid_amount,
-      remaining: inv.balance_amount,
-      status: inv.status,
-    }));
+    const allocationMap = await this.computeFifoAllocationsForInvoices(companyId);
+
+    const formattedList = invoices.map((inv) => {
+      const allocation = allocationMap.get(inv._id.toString());
+      const paid = allocation !== undefined ? allocation.paid : (inv.paid_amount || 0);
+      const remaining = allocation !== undefined ? allocation.remaining : (inv.balance_amount || 0);
+      const status = allocation !== undefined ? allocation.status : inv.status;
+
+      return {
+        id: inv.custom_id || inv._id.toString(),
+        invoice_number: inv.invoice_number,
+        customer_id: inv.customer_id ? inv.customer_id.toString() : '',
+        customer_name: inv.customer_name,
+        service: inv.service || (inv.items?.[0]?.description ?? inv.category ?? 'General'),
+        invoice_date: inv.issue_date,
+        due_date: inv.due_date,
+        lead_owner: inv.lead_owner || inv.lead_by,
+        subtotal: inv.subtotal,
+        vat: inv.vat,
+        total: inv.grand_total,
+        advance_paid: inv.advance_paid || 0,
+        paid,
+        remaining,
+        status,
+      };
+    });
 
     return {
       data: formattedList,
@@ -445,7 +578,7 @@ export class InvoiceService {
       companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined;
     const queryCompany: Record<string, any> = companyObjectId ? { companyId: companyObjectId } : {};
 
-    const [stdInvoices, travelInvoices] = await Promise.all([
+    const [stdInvoices, travelInvoices, allocationMap] = await Promise.all([
       InvoiceModel.find({
         ...queryCompany,
         status: { $nin: ['Cancelled', 'cancelled', 'Void', 'void'] },
@@ -457,6 +590,7 @@ export class InvoiceService {
         .sort({ createdAt: 1 })
         .lean()
         .exec(),
+      this.computeFifoAllocationsForInvoices(companyId),
     ]);
 
     const list: Array<{
@@ -475,8 +609,13 @@ export class InvoiceService {
 
     for (const inv of stdInvoices) {
       const total = CurrencyPrecision.round(inv.grand_total || 0);
-      const paid = CurrencyPrecision.round(inv.paid_amount || 0);
-      const outstanding = CurrencyPrecision.round(Math.max(0, total - paid));
+      const allocation = allocationMap.get(inv._id.toString()) || {
+        paid: CurrencyPrecision.round(inv.paid_amount || 0),
+        remaining: CurrencyPrecision.round(inv.balance_amount || 0),
+        status: inv.status || 'Pending',
+      };
+      const paid = allocation.paid;
+      const outstanding = allocation.remaining;
       if (outstanding <= 0) continue;
 
       const dueDateStr = inv.due_date || inv.issue_date || '';
@@ -500,10 +639,15 @@ export class InvoiceService {
 
     for (const trInv of travelInvoices) {
       const total = CurrencyPrecision.round(trInv.amount || 0);
-      const paid = CurrencyPrecision.round(
-        (trInv.payments || []).reduce((sum: number, p: any) => sum + (p.amount || 0), 0),
-      );
-      const outstanding = CurrencyPrecision.round(Math.max(0, total - paid));
+      const allocation = allocationMap.get(trInv._id.toString());
+      const paid = allocation
+        ? allocation.paid
+        : CurrencyPrecision.round(
+            (trInv.payments || []).reduce((sum: number, p: any) => sum + (p.amount || 0), 0),
+          );
+      const outstanding = allocation
+        ? allocation.remaining
+        : CurrencyPrecision.round(Math.max(0, total - paid));
       if (outstanding <= 0) continue;
 
       const dueDateStr = trInv.dueDate ? new Date(trInv.dueDate).toISOString().split('T')[0] : '';
@@ -566,7 +710,11 @@ export class InvoiceService {
     if (!invoice) {
       throw AppError.notFound(`Invoice with ID '${id}' not found`, 'NOT_FOUND');
     }
-    return this.formatInvoiceDetail(invoice);
+    const allocationMap = await this.computeFifoAllocationsForInvoices(
+      invoice.companyId ? invoice.companyId.toString() : undefined,
+    );
+    const allocation = allocationMap.get(invoice._id.toString());
+    return this.formatInvoiceDetail(invoice, allocation);
   }
 
   async updateInvoice(id: string, data: Partial<CreateInvoiceDTO>): Promise<any> {
@@ -719,7 +867,14 @@ export class InvoiceService {
     return { buffer, filename };
   }
 
-  private formatInvoiceDetail(invoice: IInvoice): any {
+  private formatInvoiceDetail(
+    invoice: IInvoice,
+    allocation?: { paid: number; remaining: number; status: string },
+  ): any {
+    const paid = allocation !== undefined ? allocation.paid : (invoice.paid_amount || 0);
+    const remaining = allocation !== undefined ? allocation.remaining : (invoice.balance_amount || 0);
+    const status = allocation !== undefined ? allocation.status : invoice.status;
+
     return {
       id: invoice.custom_id || invoice._id.toString(),
       invoice_number: invoice.invoice_number,
@@ -740,7 +895,7 @@ export class InvoiceService {
       invoice_date: invoice.issue_date,
       due_date: invoice.due_date,
       payment_terms: invoice.payment_terms,
-      status: invoice.status,
+      status,
       currency: invoice.currency || 'AED',
       remarks: invoice.remarks || '',
       service: invoice.service || '',
@@ -759,10 +914,10 @@ export class InvoiceService {
       total: invoice.grand_total,
       total_profit: invoice.total_profit,
       advance_paid: invoice.advance_paid || 0,
-      paid_amount: invoice.paid_amount,
-      paid: invoice.paid_amount,
-      balance_amount: invoice.balance_amount,
-      remaining: invoice.balance_amount,
+      paid_amount: paid,
+      paid,
+      balance_amount: remaining,
+      remaining,
       created_at: invoice.createdAt ? invoice.createdAt.toISOString() : new Date().toISOString(),
       updated_at: invoice.updatedAt ? invoice.updatedAt.toISOString() : new Date().toISOString(),
     };

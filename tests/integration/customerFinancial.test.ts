@@ -573,5 +573,59 @@ describe('Customer Account & Financial Ledger API Tests', () => {
       expect(Array.isArray(res.body.data.chartData)).toBe(true);
       expect(res.body.data.chartData.length).toBe(7);
     });
+
+    it('5. GET /api/v1/invoices/outstanding should dynamically reduce invoice outstanding balance with customer advance receipts', async () => {
+      // Create Customer "Test Customer"
+      const testCust = await CustomerModel.create({
+        name: 'TEST COSTUMER',
+        email: 'testcustomer@example.com',
+        phone: '+971500000000',
+        companyId: new Types.ObjectId(companyId),
+        status: 'active',
+      });
+
+      // Create Invoice with Total 3000 and advance_paid 500
+      await InvoiceModel.create({
+        companyId: new Types.ObjectId(companyId),
+        customer_id: testCust._id,
+        customer_name: 'TEST COSTUMER',
+        invoice_number: 'SKY-2026-ST3182',
+        issue_date: '2026-09-03',
+        due_date: '2026-09-10',
+        grand_total: 3000.0,
+        subtotal: 3000.0,
+        advance_paid: 500.0,
+        paid_amount: 500.0,
+        balance_amount: 2500.0,
+        status: 'Partially Paid',
+        lead_by: 'Staff',
+      });
+
+      // Create Advance Receipt of 2000
+      await ReceiptModel.create({
+        companyId: new Types.ObjectId(companyId),
+        customerId: testCust._id,
+        customerName: 'TEST COSTUMER',
+        reference: 'REC-0009',
+        amount: 2000.0,
+        date: '2026-09-03',
+        paymentMethod: 'Bank Transfer',
+        status: 'Received',
+        unallocated_amount: 2000.0,
+        allocations: [],
+      });
+
+      const res = await getTestAgent()
+        .get('/api/v1/invoices/outstanding')
+        .set('Authorization', `Bearer ${authToken}`)
+        .set('x-company-id', companyId);
+
+      expect(res.status).toBe(200);
+      const testInv = res.body.data.find((i: any) => i.invoiceId === 'SKY-2026-ST3182');
+      expect(testInv).toBeDefined();
+      expect(testInv.total).toBe(3000.0);
+      expect(testInv.paid).toBe(2500.0); // 500 deposit + 2000 advance receipt
+      expect(testInv.outstanding).toBe(500.0); // 3000 - 2500 = 500
+    });
   });
 });
