@@ -55,4 +55,12 @@ router.use('/documents', documentRoutes);
 router.use('/search', searchRoutes);
 router.use('/import', importRoutes);
 
+// Alternative route for bank transactions / bank statement
+router.use('/bank-transactions', (req, res, next) => {
+  const queryIndex = req.url.indexOf('?');
+  const queryString = queryIndex !== -1 ? req.url.substring(queryIndex) : '';
+  req.url = '/bank-statement' + queryString;
+  financeRoutes(req, res, next);
+});
+
 export default router;

@@ -13,7 +13,11 @@ export function validate(schema: ZodSchema, part: RequestPart = 'body') {
         field: issue.path.join('.'),
         message: issue.message,
       }));
-      next(AppError.badRequest('Validation failed', 'VALIDATION_ERROR', details));
+      const primaryMessage = details[0]?.message || 'Validation failed';
+      const code = primaryMessage.includes('Expected YYYY-MM-DD')
+        ? 'INVALID_PARAMS'
+        : 'VALIDATION_ERROR';
+      next(AppError.badRequest(primaryMessage, code, details));
       return;
     }
 

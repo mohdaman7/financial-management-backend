@@ -418,6 +418,12 @@ Returns all company bank/cash accounts with dynamic balances.
 ### `POST /finance/bank-accounts`
 Creates a bank account (`bankName`, `accountName`, `accountNumber`, `currency`, `openingBalance`).
 
+### `GET /finance/bank-statement` *(Alternative: `GET /bank-transactions`)*
+Dedicated high-performance endpoint returning aggregated summary metrics alongside line-item ledger transactions.
+* **Query Parameters:** `startDate`, `endDate`, `search`, `accountType`, `page`, `limit`
+* **Response:** Returns `summary` (`openingBalance`, `totalDeposits`, `totalWithdrawals`, `closingBalance`, `currency`), `pagination`, and `transactions` array with chronological running balance.
+* **Documentation:** See complete specifications in [docs/BANK_ACCOUNT_STATEMENT_API.md](./BANK_ACCOUNT_STATEMENT_API.md).
+
 ---
 
 ## Module 9: Complete 18 Reports

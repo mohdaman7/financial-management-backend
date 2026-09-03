@@ -12,6 +12,7 @@ import {
   reportRangeSchema,
   createBankAccountSchema,
   updateBankAccountSchema,
+  bankStatementQuerySchema,
 } from '../validators/finance.validator';
 
 const router = Router();
@@ -350,4 +351,70 @@ router.get(
   controller.exportCashFlow,
 );
 
+/**
+ * @openapi
+ * /finance/bank-statement:
+ *   get:
+ *     tags:
+ *       - Finance & Accounting
+ *     summary: Fetch bank account statement and financial report ledger
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           example: "2026-09-01"
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           example: "2026-09-30"
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *           example: "SKY-2026"
+ *       - in: query
+ *         name: accountType
+ *         schema:
+ *           type: string
+ *           enum: [all, main, petty, business]
+ *           default: all
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *     responses:
+ *       200:
+ *         description: Bank account statement fetched successfully
+ *       400:
+ *         description: Invalid date format
+ *       401:
+ *         description: Unauthorized
+ */
+router.get(
+  '/bank-statement',
+  authenticate,
+  authorizeCompany,
+  validate(bankStatementQuerySchema, 'query'),
+  controller.getBankStatement,
+);
+
+router.get(
+  '/bank-transactions',
+  authenticate,
+  authorizeCompany,
+  validate(bankStatementQuerySchema, 'query'),
+  controller.getBankStatement,
+);
+
 export default router;
+

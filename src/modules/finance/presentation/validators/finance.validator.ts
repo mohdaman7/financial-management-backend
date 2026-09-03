@@ -63,3 +63,25 @@ export const updateBankAccountSchema = z.object({
   currentBalance: z.number().optional(),
   currency: z.string().optional(),
 });
+
+export const bankStatementQuerySchema = z.object({
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format for startDate. Expected YYYY-MM-DD.')
+    .optional(),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format for endDate. Expected YYYY-MM-DD.')
+    .optional(),
+  search: z.string().optional(),
+  accountType: z.enum(['all', 'main', 'petty', 'business']).optional().default('all'),
+  page: z
+    .union([z.string(), z.number()])
+    .transform((val) => Math.max(1, parseInt(String(val), 10) || 1))
+    .optional(),
+  limit: z
+    .union([z.string(), z.number()])
+    .transform((val) => Math.max(1, Math.min(500, parseInt(String(val), 10) || 50)))
+    .optional(),
+});
+
