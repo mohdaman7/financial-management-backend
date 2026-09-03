@@ -215,4 +215,52 @@ export class CustomerController {
       next(error);
     }
   };
+
+  getFinancialSummary = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = req.params.id as string;
+      const companyId = req.user?.isSuperAdmin ? undefined : (req.companyId as string | undefined);
+      const summary = await this.getCustomerService().getFinancialSummary(id, companyId);
+      res.status(200).json(ResponseFormatter.success(summary));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getLedger = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = req.params.id as string;
+      const companyId = req.user?.isSuperAdmin ? undefined : (req.companyId as string | undefined);
+      const filters = req.query as any;
+      const ledgerResult = await this.getCustomerService().getLedger(id, filters, companyId);
+      res.status(200).json({
+        success: true,
+        data: ledgerResult.data,
+        summary: ledgerResult.summary,
+        pagination: ledgerResult.pagination,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  allocateCredit = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = req.params.id as string;
+      const companyId = req.user?.isSuperAdmin ? undefined : (req.companyId as string | undefined);
+      const performedBy = (req.user as any)?.name || req.user?.email || 'System';
+      const result = await this.getCustomerService().allocateAdvanceCredit(
+        id,
+        req.body,
+        performedBy,
+        companyId,
+      );
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 }

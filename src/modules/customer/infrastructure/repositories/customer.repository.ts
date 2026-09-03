@@ -80,19 +80,30 @@ export class CustomerRepository {
   }
 
   async findById(id: string, companyId?: string): Promise<ICustomer | null> {
-    if (!Types.ObjectId.isValid(id)) return null;
-    const query: any = { _id: new Types.ObjectId(id) };
+    const query: any = {};
+    if (Types.ObjectId.isValid(id)) {
+      query._id = new Types.ObjectId(id);
+    } else {
+      query.$or = [{ custom_id: id }, { passport_number: id }, { email: id }];
+    }
+
     if (
       companyId &&
       companyId !== '000000000000000000000000' &&
       companyId !== 'all' &&
       Types.ObjectId.isValid(companyId)
     ) {
-      query.$or = [
+      const companyCondition = [
         { companyId: new Types.ObjectId(companyId) },
         { companyId: null },
         { companyId: { $exists: false } },
       ];
+      if (query.$or) {
+        query.$and = [{ $or: query.$or }, { $or: companyCondition }];
+        delete query.$or;
+      } else {
+        query.$or = companyCondition;
+      }
     }
     return CustomerModel.findOne(query).exec();
   }
