@@ -41,7 +41,7 @@ const ReceiptAllocationSchema = new Schema<IReceiptAllocation>(
 const ReceiptSchema = new Schema<IReceipt>(
   {
     companyId: { type: Schema.Types.ObjectId, ref: 'Company', default: null },
-    invoiceId: { type: Schema.Types.ObjectId, ref: 'TravelInvoice', default: null },
+    invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice', default: null },
     customerId: { type: Schema.Types.ObjectId, ref: 'Customer', default: null },
     reference: { type: String, required: true, trim: true },
     customerName: { type: String, required: true, trim: true },

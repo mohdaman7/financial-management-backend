@@ -10,7 +10,6 @@ import {
   ICustomerActivityLog,
 } from '../../infrastructure/models/Customer.model';
 import { InvoiceModel } from '@modules/finance/infrastructure/models/Invoice.model';
-import { TravelInvoiceModel } from '@modules/travel/infrastructure/models/TravelInvoice.model';
 import { ReceiptModel } from '@modules/finance/infrastructure/models/Receipt.model';
 import { AppError } from '@shared/errors/AppError';
 import { getGridFSBucket } from '@shared/middleware/gridfs.middleware';
@@ -359,12 +358,6 @@ export class CustomerService {
       ],
     };
 
-    // Travel invoices query
-    const travelInvoiceQuery: any = {
-      customerId,
-      status: { $nin: ['cancelled', 'void'] },
-    };
-
     // Receipts query
     const receiptQuery: any = {
       $and: [
@@ -392,13 +385,11 @@ export class CustomerService {
         ],
       };
       stdInvoiceQuery.$and.push(compCondition);
-      travelInvoiceQuery.$and = [compCondition];
       receiptQuery.$and.push(compCondition);
     }
 
-    const [stdInvoices, travelInvoices, receipts] = await Promise.all([
+    const [stdInvoices, receipts] = await Promise.all([
       InvoiceModel.find(stdInvoiceQuery).sort({ createdAt: 1 }).exec(),
-      TravelInvoiceModel.find(travelInvoiceQuery).sort({ createdAt: 1 }).exec(),
       ReceiptModel.find(receiptQuery).sort({ createdAt: 1 }).exec(),
     ]);
 
@@ -469,57 +460,21 @@ export class CustomerService {
         createdAt: inv.createdAt,
       });
 
-      let effectiveAdvance = inv.advance_paid || 0;
-      if (effectiveAdvance === 0 && inv.paid_amount && inv.paid_amount > 0) {
-        const totalCustomerReceipts = receipts.reduce((sum, r) => sum + (r.amount || 0), 0);
-        if (inv.paid_amount > totalCustomerReceipts) {
-          effectiveAdvance = CurrencyPrecision.round(inv.paid_amount - totalCustomerReceipts);
-        }
-      }
+      const effectiveAdvance = CurrencyPrecision.round(inv.advance_paid || 0);
 
       if (effectiveAdvance > 0) {
-        const hasMatchingReceipt = receipts.some(
-          (r) =>
-            Math.abs((r.amount || 0) - effectiveAdvance) < 0.01 &&
-            (r.date === invDate ||
-              Math.abs(
-                new Date(r.createdAt || 0).getTime() - new Date(inv.createdAt || 0).getTime(),
-              ) < 60000),
-        );
-        if (!hasMatchingReceipt) {
-          formattedReceipts.push({
-            id: `dep-${inv._id.toString()}`,
-            date: invDate,
-            refNo: `DEP-${inv.invoice_number || inv.custom_id || 'INV'}`,
-            type: 'receipt' as const,
-            description: `Advance Deposit — Paid at Invoice Creation (${inv.invoice_number || inv.custom_id || 'INV'})`,
-            debit: 0.0,
-            credit: CurrencyPrecision.round(effectiveAdvance),
-            status: 'received',
-            createdAt: new Date(new Date(inv.createdAt).getTime() + 1),
-          });
-        }
-        if (!inv.advance_paid || inv.advance_paid === 0) {
-          InvoiceModel.updateOne({ _id: inv._id }, { $set: { advance_paid: effectiveAdvance } })
-            .exec()
-            .catch(() => {});
-        }
+        formattedReceipts.push({
+          id: `dep-${inv._id.toString()}`,
+          date: invDate,
+          refNo: `DEP-${inv.invoice_number || inv.custom_id || 'INV'}`,
+          type: 'receipt' as const,
+          description: `Advance Deposit — Paid at Invoice Creation (${inv.invoice_number || inv.custom_id || 'INV'})`,
+          debit: 0.0,
+          credit: effectiveAdvance,
+          status: 'received',
+          createdAt: new Date(new Date(inv.createdAt).getTime() + 1),
+        });
       }
-    }
-
-    for (const inv of travelInvoices) {
-      const invDate = inv.createdAt ? inv.createdAt.toISOString().split('T')[0] : '';
-      formattedInvoices.push({
-        id: inv._id.toString(),
-        date: invDate,
-        refNo: inv.invoiceNumber || 'INV',
-        type: 'invoice',
-        description: `Travel Invoice ${inv.invoiceNumber}`,
-        debit: CurrencyPrecision.round(inv.amount || 0),
-        credit: 0.0,
-        status: (inv.status || 'unpaid').toLowerCase().replace(/\s+/g, '_'),
-        createdAt: inv.createdAt,
-      });
     }
 
     return { invoices: formattedInvoices, receipts: formattedReceipts };
@@ -710,93 +665,46 @@ export class CustomerService {
 
     // Look for standard invoice
     let stdInvoice = null;
-    let travelInvoice = null;
 
     if (Types.ObjectId.isValid(invoiceIdentifier)) {
       stdInvoice = await InvoiceModel.findById(invoiceIdentifier).exec();
-      if (!stdInvoice) {
-        travelInvoice = await TravelInvoiceModel.findById(invoiceIdentifier).exec();
-      }
     }
 
-    if (!stdInvoice && !travelInvoice) {
+    if (!stdInvoice) {
       stdInvoice = await InvoiceModel.findOne({
         $or: [{ invoice_number: invoiceIdentifier }, { custom_id: invoiceIdentifier }],
       }).exec();
     }
 
-    if (!stdInvoice && !travelInvoice) {
-      travelInvoice = await TravelInvoiceModel.findOne({
-        invoiceNumber: invoiceIdentifier,
-      }).exec();
-    }
-
-    if (!stdInvoice && !travelInvoice) {
+    if (!stdInvoice) {
       throw AppError.notFound('Invoice specified for credit allocation was not found', 'INVOICE_NOT_FOUND');
     }
 
-    let invoiceRemainingDue = 0;
-    let invStatus = 'fully_paid';
-    let targetInvoiceId = '';
-    let targetInvoiceRef = '';
+    const targetInvoiceId = stdInvoice._id.toString();
+    const targetInvoiceRef = stdInvoice.invoice_number || stdInvoice.custom_id || targetInvoiceId;
 
-    if (stdInvoice) {
-      targetInvoiceId = stdInvoice._id.toString();
-      targetInvoiceRef = stdInvoice.invoice_number || stdInvoice.custom_id || targetInvoiceId;
+    const grandTotal = CurrencyPrecision.round(stdInvoice.grand_total || 0);
+    const currentPaid = CurrencyPrecision.round(stdInvoice.paid_amount || 0);
+    const due = CurrencyPrecision.round(Math.max(0, grandTotal - currentPaid));
 
-      const grandTotal = CurrencyPrecision.round(stdInvoice.grand_total || 0);
-      const currentPaid = CurrencyPrecision.round(stdInvoice.paid_amount || 0);
-      const due = CurrencyPrecision.round(Math.max(0, grandTotal - currentPaid));
-
-      if (due <= 0 || stdInvoice.status === 'Paid') {
-        throw AppError.badRequest(
-          'Invoice specified for credit allocation is already fully settled',
-          'INVOICE_ALREADY_PAID',
-        );
-      }
-
-      const effectiveAlloc = CurrencyPrecision.round(Math.min(allocatedAmount, due));
-      const newPaid = CurrencyPrecision.round(currentPaid + effectiveAlloc);
-      const newBalance = CurrencyPrecision.round(Math.max(0, grandTotal - newPaid));
-
-      stdInvoice.paid_amount = newPaid;
-      stdInvoice.balance_amount = newBalance;
-      stdInvoice.status = newBalance <= 0 ? 'Paid' : 'Partially Paid';
-      await stdInvoice.save();
-
-      invoiceRemainingDue = newBalance;
-      invStatus = newBalance <= 0 ? 'fully_paid' : 'partially_paid';
-    } else if (travelInvoice) {
-      targetInvoiceId = travelInvoice._id.toString();
-      targetInvoiceRef = travelInvoice.invoiceNumber || targetInvoiceId;
-
-      const totalPaid = CurrencyPrecision.round(
-        (travelInvoice.payments || []).reduce((acc, p) => acc + (p.amount || 0), 0),
+    if (due <= 0 || stdInvoice.status === 'Paid') {
+      throw AppError.badRequest(
+        'Invoice specified for credit allocation is already fully settled',
+        'INVOICE_ALREADY_PAID',
       );
-      const due = CurrencyPrecision.round(Math.max(0, travelInvoice.amount - totalPaid));
-
-      if (due <= 0 || travelInvoice.status === 'paid') {
-        throw AppError.badRequest(
-          'Invoice specified for credit allocation is already fully settled',
-          'INVOICE_ALREADY_PAID',
-        );
-      }
-
-      const effectiveAlloc = CurrencyPrecision.round(Math.min(allocatedAmount, due));
-      travelInvoice.payments.push({
-        amount: effectiveAlloc,
-        date: new Date(),
-        paymentMethod: 'other',
-      });
-
-      const totalAfter = CurrencyPrecision.round(totalPaid + effectiveAlloc);
-      const newBalance = CurrencyPrecision.round(Math.max(0, travelInvoice.amount - totalAfter));
-      travelInvoice.status = newBalance <= 0 ? 'paid' : 'partially_paid';
-      await travelInvoice.save();
-
-      invoiceRemainingDue = newBalance;
-      invStatus = newBalance <= 0 ? 'fully_paid' : 'partially_paid';
     }
+
+    const effectiveAlloc = CurrencyPrecision.round(Math.min(allocatedAmount, due));
+    const newPaid = CurrencyPrecision.round(currentPaid + effectiveAlloc);
+    const newBalance = CurrencyPrecision.round(Math.max(0, grandTotal - newPaid));
+
+    stdInvoice.paid_amount = newPaid;
+    stdInvoice.balance_amount = newBalance;
+    stdInvoice.status = newBalance <= 0 ? 'Paid' : 'Partially Paid';
+    await stdInvoice.save();
+
+    const invoiceRemainingDue = newBalance;
+    const invStatus = newBalance <= 0 ? 'fully_paid' : 'partially_paid';
 
     // Deduct advance credit from customer's unallocated receipts FIFO
     let remainingToDeduct = allocatedAmount;
@@ -854,4 +762,3 @@ export class CustomerService {
     };
   }
 }
-

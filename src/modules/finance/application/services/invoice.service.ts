@@ -13,11 +13,16 @@ import {
   InvoiceModel,
 } from '../../infrastructure/models/Invoice.model';
 import { ReceiptModel } from '../../infrastructure/models/Receipt.model';
-import { TravelInvoiceModel } from '../../../travel/infrastructure/models/TravelInvoice.model';
 import { CustomerModel } from '@modules/customer/infrastructure/models/Customer.model';
 import { AppError } from '@shared/errors/AppError';
 import { PdfGenerator } from '@shared/utils/pdfGenerator';
 import { CurrencyPrecision } from '@shared/utils/currencyPrecision';
+import {
+  FifoAllocationEngine,
+  FifoInvoiceInput,
+  FifoReceiptInput,
+  CustomerIdentity,
+} from '@shared/utils/fifoAllocationEngine';
 
 export interface CreateInvoiceDTO {
   invoice_number?: string;
@@ -396,21 +401,17 @@ export class InvoiceService {
 
   private async computeFifoAllocationsForInvoices(
     companyId?: string,
-  ): Promise<Map<string, { paid: number; remaining: number; status: string }>> {
+  ): Promise<Map<string, { paid: number; remaining: number; status: string; advancePaid: number }>> {
     const companyObjectId =
       companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined;
     const queryCompany: Record<string, any> = companyObjectId ? { companyId: companyObjectId } : {};
 
-    const [stdInvoices, travelInvoices, receipts, customers] = await Promise.all([
+    const [stdInvoices, receipts, customers] = await Promise.all([
       InvoiceModel.find({
         ...queryCompany,
         status: { $nin: ['Cancelled', 'cancelled', 'Void', 'void'] },
       })
         .sort({ issue_date: 1, createdAt: 1 })
-        .lean()
-        .exec(),
-      TravelInvoiceModel.find(queryCompany)
-        .sort({ createdAt: 1 })
         .lean()
         .exec(),
       ReceiptModel.find({
@@ -420,176 +421,49 @@ export class InvoiceService {
         .sort({ date: 1, createdAt: 1 })
         .lean()
         .exec(),
-      CustomerModel.find(queryCompany)
-        .lean()
-        .exec(),
+      CustomerModel.find(queryCompany).lean().exec(),
     ]);
 
-    const normalizeName = (name?: string) =>
-      (name || '').trim().toLowerCase().replace(/\s+/g, ' ');
-
-    const nameToCustomerId = new Map<string, string>();
-    for (const c of customers) {
-      const cid = c._id.toString();
-      if (c.name) nameToCustomerId.set(normalizeName(c.name), cid);
-      if ((c as any).company_name) nameToCustomerId.set(normalizeName((c as any).company_name), cid);
-    }
-
-    const resolveCustomerKey = (customerId?: any, customerName?: string): string => {
-      if (customerId && Types.ObjectId.isValid(customerId.toString())) {
-        return customerId.toString();
-      }
-      const norm = normalizeName(customerName);
-      if (norm && nameToCustomerId.has(norm)) {
-        return nameToCustomerId.get(norm)!;
-      }
-      if (norm) {
-        return `name:${norm}`;
-      }
-      if (customerId) {
-        return customerId.toString();
-      }
-      return '';
-    };
-
-    // Auto-heal missing customer_id on invoices and receipts in database
-    const healPromises: Promise<any>[] = [];
-    for (const inv of stdInvoices) {
-      if ((!inv.customer_id || inv.customer_id.toString() === '') && inv.customer_name) {
-        const norm = normalizeName(inv.customer_name);
-        const matchedId = nameToCustomerId.get(norm);
-        if (matchedId) {
-          (inv as any).customer_id = new Types.ObjectId(matchedId);
-          healPromises.push(
-            InvoiceModel.updateOne(
-              { _id: inv._id },
-              { $set: { customer_id: new Types.ObjectId(matchedId) } }
-            ).exec().catch(() => null)
-          );
-        }
-      }
-    }
-
-    for (const rec of receipts) {
-      if ((!rec.customerId || rec.customerId.toString() === '') && rec.customerName) {
-        const norm = normalizeName(rec.customerName);
-        const matchedId = nameToCustomerId.get(norm);
-        if (matchedId) {
-          (rec as any).customerId = new Types.ObjectId(matchedId);
-          healPromises.push(
-            ReceiptModel.updateOne(
-              { _id: rec._id },
-              { $set: { customerId: new Types.ObjectId(matchedId) } }
-            ).exec().catch(() => null)
-          );
-        }
-      }
-    }
-    if (healPromises.length > 0) {
-      await Promise.all(healPromises);
-    }
-
-    const customerInvoicesMap = new Map<
-      string,
-      Array<{ id: string; total: number; advance_paid: number }>
-    >();
-    const allocationResultMap = new Map<string, { paid: number; remaining: number; status: string }>();
-
-    for (const inv of stdInvoices) {
-      const custKey = resolveCustomerKey(inv.customer_id, inv.customer_name);
-      if (!custKey) continue;
-      const list = customerInvoicesMap.get(custKey) || [];
-      const basePaid = CurrencyPrecision.round(
+    const fifoInvoices: FifoInvoiceInput[] = stdInvoices.map((inv) => ({
+      id: inv._id.toString(),
+      mongoId: inv._id.toString(),
+      customerId: inv.customer_id ? inv.customer_id.toString() : undefined,
+      customerName: inv.customer_name,
+      grandTotal: inv.grand_total || 0,
+      advancePaid:
         inv.advance_paid !== undefined && inv.advance_paid > 0
           ? inv.advance_paid
           : (inv.paid_amount || 0),
-      );
-      list.push({
-        id: inv._id.toString(),
-        total: CurrencyPrecision.round(inv.grand_total || 0),
-        advance_paid: basePaid,
-      });
-      customerInvoicesMap.set(custKey, list);
-    }
+      date: inv.issue_date || (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : ''),
+      createdAt: inv.createdAt ? new Date(inv.createdAt) : new Date(),
+    }));
 
-    for (const trInv of travelInvoices) {
-      const custKey = resolveCustomerKey((trInv as any).customerId, (trInv as any).customerName);
-      if (!custKey) continue;
-      const list = customerInvoicesMap.get(custKey) || [];
-      const trPaid = CurrencyPrecision.round(
-        (trInv.payments || []).reduce((sum: number, p: any) => sum + (p.amount || 0), 0),
-      );
-      list.push({
-        id: trInv._id.toString(),
-        total: CurrencyPrecision.round(trInv.amount || 0),
-        advance_paid: trPaid,
-      });
-      customerInvoicesMap.set(custKey, list);
-    }
+    const fifoReceipts: FifoReceiptInput[] = receipts.map((rec) => ({
+      id: rec._id.toString(),
+      mongoId: rec._id.toString(),
+      customerId: rec.customerId ? rec.customerId.toString() : undefined,
+      customerName: rec.customerName,
+      amount: rec.amount || 0,
+      date: rec.date || (rec.createdAt ? new Date(rec.createdAt).toISOString().split('T')[0] : ''),
+      createdAt: rec.createdAt ? new Date(rec.createdAt) : new Date(),
+    }));
 
-    const customerReceiptsMap = new Map<string, any[]>();
-    for (const rec of receipts) {
-      const custKey = resolveCustomerKey(rec.customerId, rec.customerName);
-      if (!custKey) continue;
-      const list = customerReceiptsMap.get(custKey) || [];
-      list.push(rec);
-      customerReceiptsMap.set(custKey, list);
-    }
+    const customerIdentities: CustomerIdentity[] = customers.map((c: any) => ({
+      id: c._id.toString(),
+      name: c.name,
+      companyName: c.company_name || c.companyName,
+    }));
 
-    customerInvoicesMap.forEach((invoicesList, custKey) => {
-      const receiptsList = customerReceiptsMap.get(custKey) || [];
+    const allocationResult = FifoAllocationEngine.calculate(
+      fifoInvoices,
+      fifoReceipts,
+      customerIdentities,
+    );
 
-      const invoiceDues = invoicesList.map((inv) => {
-        const initialPaid = inv.advance_paid || 0;
-        return {
-          id: inv.id,
-          total: inv.total,
-          advancePaid: initialPaid,
-          allocatedFromReceipts: 0,
-          remainingDue: CurrencyPrecision.round(Math.max(0, inv.total - initialPaid)),
-        };
-      });
+    // Sync database asynchronously
+    FifoAllocationEngine.persistAllocations(fifoInvoices, fifoReceipts, allocationResult).catch(() => {});
 
-      for (const rec of receiptsList) {
-        let availableCredit = CurrencyPrecision.round(rec.amount || 0);
-
-        for (const inv of invoiceDues) {
-          if (inv.remainingDue <= 0 || availableCredit <= 0) continue;
-          const toAllocate = CurrencyPrecision.round(Math.min(inv.remainingDue, availableCredit));
-          inv.allocatedFromReceipts = CurrencyPrecision.round(inv.allocatedFromReceipts + toAllocate);
-          inv.remainingDue = CurrencyPrecision.round(inv.remainingDue - toAllocate);
-          availableCredit = CurrencyPrecision.round(availableCredit - toAllocate);
-        }
-
-        if (rec._id && rec.unallocated_amount !== availableCredit) {
-          ReceiptModel.updateOne(
-            { _id: rec._id },
-            { $set: { unallocated_amount: availableCredit } },
-          ).exec().catch(() => {});
-        }
-      }
-
-      for (const inv of invoiceDues) {
-        const totalPaid = CurrencyPrecision.round(inv.advancePaid + inv.allocatedFromReceipts);
-        const remaining = CurrencyPrecision.round(Math.max(0, inv.total - totalPaid));
-        let status = 'Pending';
-        if (remaining <= 0 && inv.total > 0) {
-          status = 'Paid';
-        } else if (totalPaid > 0) {
-          status = 'Partially Paid';
-        }
-        allocationResultMap.set(inv.id, { paid: totalPaid, remaining, status });
-
-        if (Types.ObjectId.isValid(inv.id)) {
-          InvoiceModel.updateOne(
-            { _id: new Types.ObjectId(inv.id) },
-            { $set: { paid_amount: totalPaid, balance_amount: remaining, status } },
-          ).exec().catch(() => {});
-        }
-      }
-    });
-
-    return allocationResultMap;
+    return allocationResult.invoiceAllocations;
   }
 
   async listInvoices(
@@ -672,16 +546,12 @@ export class InvoiceService {
       companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined;
     const queryCompany: Record<string, any> = companyObjectId ? { companyId: companyObjectId } : {};
 
-    const [stdInvoices, travelInvoices, allocationMap, customers] = await Promise.all([
+    const [stdInvoices, allocationMap, customers] = await Promise.all([
       InvoiceModel.find({
         ...queryCompany,
         status: { $nin: ['Cancelled', 'cancelled', 'Void', 'void'] },
       })
         .sort({ issue_date: 1, createdAt: 1 })
-        .lean()
-        .exec(),
-      TravelInvoiceModel.find(queryCompany)
-        .sort({ createdAt: 1 })
         .lean()
         .exec(),
       this.computeFifoAllocationsForInvoices(companyId),
@@ -699,7 +569,6 @@ export class InvoiceService {
     }
 
     const list: Array<any> = [];
-
     const now = Date.now();
 
     for (const inv of stdInvoices) {
@@ -708,6 +577,7 @@ export class InvoiceService {
         paid: CurrencyPrecision.round(inv.paid_amount || 0),
         remaining: CurrencyPrecision.round(inv.balance_amount || 0),
         status: inv.status || 'Pending',
+        advancePaid: inv.advance_paid || 0,
       };
       const paid = allocation.paid;
       const outstanding = allocation.remaining;
@@ -741,58 +611,6 @@ export class InvoiceService {
         grand_total: total,
         advance_paid: inv.advance_paid || 0,
         advancePaid: inv.advance_paid || 0,
-        paid,
-        paidAmount: paid,
-        paid_amount: paid,
-        outstanding,
-        remaining: outstanding,
-        balance_amount: outstanding,
-        daysOverdue,
-        status,
-      });
-    }
-
-    for (const trInv of travelInvoices) {
-      const total = CurrencyPrecision.round(trInv.amount || 0);
-      const allocation = allocationMap.get(trInv._id.toString());
-      const paid = allocation
-        ? allocation.paid
-        : CurrencyPrecision.round(
-            (trInv.payments || []).reduce((sum: number, p: any) => sum + (p.amount || 0), 0),
-          );
-      const outstanding = allocation
-        ? allocation.remaining
-        : CurrencyPrecision.round(Math.max(0, total - paid));
-      if (outstanding <= 0) continue;
-
-      const dueDateStr = trInv.dueDate ? new Date(trInv.dueDate).toISOString().split('T')[0] : '';
-      const dueTimestamp = trInv.dueDate ? new Date(trInv.dueDate).getTime() : now;
-      const diffDays = Math.ceil((now - dueTimestamp) / (1000 * 60 * 60 * 24));
-      const daysOverdue = Math.max(0, diffDays);
-      const status = daysOverdue > 0 ? 'Overdue' : 'Due Soon';
-
-      const resolvedCustId = (trInv as any).customerId
-        ? (trInv as any).customerId.toString()
-        : (nameToCustomerId.get(normalizeName((trInv as any).customerName)) || '');
-
-      list.push({
-        id: trInv._id.toString(),
-        invoiceId: trInv.invoiceNumber || trInv._id.toString(),
-        invoice_number: trInv.invoiceNumber || '',
-        invoiceNumber: trInv.invoiceNumber || '',
-        customerName: (trInv as any).customerName || 'Travel Client',
-        customer_name: (trInv as any).customerName || 'Travel Client',
-        customerId: resolvedCustId,
-        customer_id: resolvedCustId,
-        invoiceDate: trInv.createdAt ? new Date(trInv.createdAt).toISOString().split('T')[0] : '',
-        invoice_date: trInv.createdAt ? new Date(trInv.createdAt).toISOString().split('T')[0] : '',
-        dueDate: dueDateStr,
-        due_date: dueDateStr,
-        total,
-        totalAmount: total,
-        grand_total: total,
-        advance_paid: (trInv as any).advance_paid || 0,
-        advancePaid: (trInv as any).advance_paid || 0,
         paid,
         paidAmount: paid,
         paid_amount: paid,
@@ -895,20 +713,21 @@ export class InvoiceService {
       currency: data.currency ?? existing.currency,
       status: data.status ?? existing.status,
       advance_paid:
-        data.advance_paid ??
-        (data as any).advancePaid ??
-        data.advance_amount ??
-        (data as any).advanceAmount ??
-        (data as any).advance ??
-        existing.advance_paid ??
-        0,
+        data.advance_paid !== undefined
+          ? Number(data.advance_paid)
+          : (data as any).advancePaid !== undefined
+            ? Number((data as any).advancePaid)
+            : data.advance_amount !== undefined
+              ? Number(data.advance_amount)
+              : (data as any).advanceAmount !== undefined
+                ? Number((data as any).advanceAmount)
+                : existing.advance_paid ?? 0,
       paid_amount:
-        data.paid_amount ??
-        (data as any).paidAmount ??
-        (data as any).advance_amount ??
-        (data as any).advanceAmount ??
-        (data as any).advance ??
-        existing.paid_amount,
+        data.paid_amount !== undefined
+          ? Number(data.paid_amount)
+          : (data as any).paidAmount !== undefined
+            ? Number((data as any).paidAmount)
+            : existing.paid_amount,
       balance_amount: data.balance_amount ?? (data as any).balanceAmount ?? existing.balance_amount,
       items: data.items ?? (existing.items as any),
       addition_items: data.addition_items ?? (existing.addition_items as any),
@@ -1026,7 +845,7 @@ export class InvoiceService {
 
   private formatInvoiceDetail(
     invoice: IInvoice,
-    allocation?: { paid: number; remaining: number; status: string },
+    allocation?: { paid: number; remaining: number; status: string; advancePaid?: number },
   ): any {
     const paid = allocation !== undefined ? allocation.paid : (invoice.paid_amount || 0);
     const remaining = allocation !== undefined ? allocation.remaining : (invoice.balance_amount || 0);

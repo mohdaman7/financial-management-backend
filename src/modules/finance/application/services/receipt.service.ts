@@ -6,8 +6,8 @@ import {
 } from '../../infrastructure/repositories/receipt.repository';
 import { IReceipt, IReceiptAllocation } from '../../infrastructure/models/Receipt.model';
 import { TransactionModel } from '../../infrastructure/models/Transaction.model';
-import { TravelInvoiceModel } from '../../../travel/infrastructure/models/TravelInvoice.model';
 import { InvoiceModel } from '../../infrastructure/models/Invoice.model';
+import { TravelInvoiceModel } from '../../../travel/infrastructure/models/TravelInvoice.model';
 import { CustomerModel } from '../../../customer/infrastructure/models/Customer.model';
 import { AppError } from '@shared/errors/AppError';
 import { PdfGenerator } from '@shared/utils/pdfGenerator';
@@ -143,33 +143,27 @@ export class ReceiptService {
     }
 
     if (!customerName && invoiceId) {
-      let invCustomerName = '';
-      let invCustomerId = '';
+      const stdInv = Types.ObjectId.isValid(invoiceId)
+        ? await InvoiceModel.findById(invoiceId).exec()
+        : await InvoiceModel.findOne({
+            $or: [{ invoice_number: invoiceId }, { custom_id: invoiceId }],
+          }).exec();
 
-      if (Types.ObjectId.isValid(invoiceId)) {
-        const trInv = await TravelInvoiceModel.findById(invoiceId).exec();
-        if (trInv && trInv.customerId) invCustomerId = trInv.customerId.toString();
-        const stdInv = await InvoiceModel.findById(invoiceId).exec();
-        if (stdInv) {
-          invCustomerName = stdInv.customer_name;
-          if (stdInv.customer_id) invCustomerId = stdInv.customer_id.toString();
-        }
+      if (stdInv) {
+        customerName = stdInv.customer_name;
+        if (stdInv.customer_id) customerId = stdInv.customer_id.toString();
       } else {
-        const trInv = await TravelInvoiceModel.findOne({ invoiceNumber: invoiceId }).exec();
-        if (trInv && trInv.customerId) invCustomerId = trInv.customerId.toString();
-        const stdInv = await InvoiceModel.findOne({ invoice_number: invoiceId }).exec();
-        if (stdInv) {
-          invCustomerName = stdInv.customer_name;
-          if (stdInv.customer_id) invCustomerId = stdInv.customer_id.toString();
+        const travelInv = Types.ObjectId.isValid(invoiceId)
+          ? await TravelInvoiceModel.findById(invoiceId).populate('customerId').exec()
+          : await TravelInvoiceModel.findOne({ invoiceNumber: invoiceId }).populate('customerId').exec();
+
+        if (travelInv) {
+          if (travelInv.customerId) {
+            customerId = (travelInv.customerId as any)._id?.toString() || travelInv.customerId.toString();
+            customerName = (travelInv.customerId as any).name || customerName;
+          }
         }
       }
-
-      if (invCustomerId && !customerId) customerId = invCustomerId;
-      if (invCustomerId && !customerName) {
-        const cust = await CustomerModel.findById(invCustomerId).exec();
-        if (cust) customerName = cust.name;
-      }
-      if (invCustomerName && !customerName) customerName = invCustomerName;
     }
 
     if (!customerName) {
@@ -187,72 +181,85 @@ export class ReceiptService {
 
     // 1. Single Specific Invoice Allocation
     if (invoiceId) {
-      let travelInvoice = Types.ObjectId.isValid(invoiceId)
-        ? await TravelInvoiceModel.findById(invoiceId).exec()
-        : await TravelInvoiceModel.findOne({ invoiceNumber: invoiceId }).exec();
+      const stdInvoice = Types.ObjectId.isValid(invoiceId)
+        ? await InvoiceModel.findById(invoiceId).exec()
+        : await InvoiceModel.findOne({
+            $or: [{ invoice_number: invoiceId }, { custom_id: invoiceId }],
+          }).exec();
 
-      if (travelInvoice) {
-        const totalPaid = CurrencyPrecision.round(
-          (travelInvoice.payments || []).reduce((acc, p) => acc + (p.amount || 0), 0),
-        );
-        const due = CurrencyPrecision.round(Math.max(0, travelInvoice.amount - totalPaid));
+      if (stdInvoice) {
+        const grandTotal = CurrencyPrecision.round(stdInvoice.grand_total || 0);
+        const currentPaid = CurrencyPrecision.round(stdInvoice.paid_amount || 0);
+        const due = CurrencyPrecision.round(Math.max(0, grandTotal - currentPaid));
         const allocated = CurrencyPrecision.round(Math.min(due, remainingAmount));
 
-        const pmLower = paymentMethod.toLowerCase().replace(/[\s-]+/g, '_');
-        const mapPm: 'cash' | 'bank_transfer' | 'card' | 'other' =
-          pmLower === 'cash'
-            ? 'cash'
-            : pmLower === 'card'
-            ? 'card'
-            : pmLower === 'bank_transfer'
-            ? 'bank_transfer'
-            : 'other';
+        const newPaid = CurrencyPrecision.round(currentPaid + allocated);
+        const newBalance = CurrencyPrecision.round(Math.max(0, grandTotal - newPaid));
 
-        travelInvoice.payments.push({
-          amount: allocated,
-          date: new Date(),
-          paymentMethod: mapPm,
-        });
-
-        if (CurrencyPrecision.round(totalPaid + allocated) >= travelInvoice.amount) {
-          travelInvoice.status = 'paid';
+        stdInvoice.paid_amount = newPaid;
+        stdInvoice.balance_amount = newBalance;
+        if (newBalance <= 0) {
+          stdInvoice.status = 'Paid';
+        } else if (newPaid > 0) {
+          stdInvoice.status = 'Partially Paid';
         }
 
-        await travelInvoice.save();
+        await stdInvoice.save();
 
         allocations.push({
-          invoice_id: travelInvoice.invoiceNumber || travelInvoice._id.toString(),
+          invoice_id: stdInvoice.invoice_number || stdInvoice.custom_id || stdInvoice._id.toString(),
           allocated_amount: allocated,
-          remaining_invoice_balance: CurrencyPrecision.round(Math.max(0, due - allocated)),
+          remaining_invoice_balance: newBalance,
         });
 
         remainingAmount = CurrencyPrecision.round(remainingAmount - allocated);
       } else {
-        const stdInvoice = Types.ObjectId.isValid(invoiceId)
-          ? await InvoiceModel.findById(invoiceId).exec()
-          : await InvoiceModel.findOne({ invoice_number: invoiceId }).exec();
+        const travelInvoice = Types.ObjectId.isValid(invoiceId)
+          ? await TravelInvoiceModel.findById(invoiceId).exec()
+          : await TravelInvoiceModel.findOne({ invoiceNumber: invoiceId }).exec();
 
-        if (stdInvoice) {
-          const grandTotal = stdInvoice.grand_total || 0;
-          const currentPaid = stdInvoice.paid_amount || 0;
+        if (travelInvoice) {
+          const grandTotal = CurrencyPrecision.round(travelInvoice.amount || 0);
+          const currentPaid = CurrencyPrecision.round(
+            (travelInvoice.payments || []).reduce((acc: number, p: any) => acc + (p.amount || 0), 0),
+          );
           const due = CurrencyPrecision.round(Math.max(0, grandTotal - currentPaid));
           const allocated = CurrencyPrecision.round(Math.min(due, remainingAmount));
 
           const newPaid = CurrencyPrecision.round(currentPaid + allocated);
           const newBalance = CurrencyPrecision.round(Math.max(0, grandTotal - newPaid));
 
-          stdInvoice.paid_amount = newPaid;
-          stdInvoice.balance_amount = newBalance;
+          const pm =
+            paymentMethod === 'Cash' ? 'cash' : paymentMethod === 'Card' ? 'card' : 'bank_transfer';
+
+          travelInvoice.payments = travelInvoice.payments || [];
+          travelInvoice.payments.push({
+            amount: allocated,
+            date: date ? new Date(date) : new Date(),
+            paymentMethod: pm as any,
+          });
+
           if (newBalance <= 0) {
-            stdInvoice.status = 'Paid';
-          } else if (newPaid > 0) {
-            stdInvoice.status = 'Partially Paid';
+            travelInvoice.status = 'paid';
           }
 
-          await stdInvoice.save();
+          await travelInvoice.save();
+
+          // Sync counterpart standard invoice if present
+          if (travelInvoice.invoiceNumber) {
+            const stdCounterpart = await InvoiceModel.findOne({
+              invoice_number: travelInvoice.invoiceNumber,
+            }).exec();
+            if (stdCounterpart) {
+              stdCounterpart.paid_amount = newPaid;
+              stdCounterpart.balance_amount = newBalance;
+              stdCounterpart.status = newBalance <= 0 ? 'Paid' : 'Partially Paid';
+              await stdCounterpart.save();
+            }
+          }
 
           allocations.push({
-            invoice_id: stdInvoice.invoice_number || stdInvoice._id.toString(),
+            invoice_id: travelInvoice.invoiceNumber || travelInvoice._id.toString(),
             allocated_amount: allocated,
             remaining_invoice_balance: newBalance,
           });
@@ -260,75 +267,95 @@ export class ReceiptService {
           remainingAmount = CurrencyPrecision.round(remainingAmount - allocated);
         }
       }
-    } else if (customerId || customerName) {
-      // 2. FIFO multi-invoice allocation for customer debts (oldest unpaid invoice first)
-      const query: any = { status: { $ne: 'paid' } };
+    }
+
+    // 2. FIFO multi-invoice allocation across unpaid customer invoices if remainingAmount > 0
+    if (remainingAmount > 0 && (customerId || customerName)) {
+      const stdQuery: any = {
+        status: { $nin: ['Paid', 'Cancelled', 'Void', 'paid', 'cancelled', 'void'] },
+      };
       if (companyId && Types.ObjectId.isValid(companyId)) {
-        query.companyId = new Types.ObjectId(companyId);
+        stdQuery.companyId = new Types.ObjectId(companyId);
       }
       if (customerId && Types.ObjectId.isValid(customerId)) {
-        query.customerId = new Types.ObjectId(customerId);
+        stdQuery.customer_id = new Types.ObjectId(customerId);
+      } else if (customerName) {
+        const escaped = customerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        stdQuery.customer_name = { $regex: `^${escaped}$`, $options: 'i' };
       }
-      const unpaidInvoices = await TravelInvoiceModel.find(query).sort({ createdAt: 1 }).exec();
-      for (const inv of unpaidInvoices) {
+
+      const travelQuery: any = {
+        status: { $in: ['unpaid', 'partially_paid', 'overdue'] },
+      };
+      if (companyId && Types.ObjectId.isValid(companyId)) {
+        travelQuery.companyId = new Types.ObjectId(companyId);
+      }
+      if (customerId && Types.ObjectId.isValid(customerId)) {
+        travelQuery.customerId = new Types.ObjectId(customerId);
+      }
+
+      const [unpaidStandard, unpaidTravel] = await Promise.all([
+        InvoiceModel.find(stdQuery).sort({ issue_date: 1, createdAt: 1 }).exec(),
+        (customerId || companyId)
+          ? TravelInvoiceModel.find(travelQuery).sort({ createdAt: 1 }).exec()
+          : Promise.resolve([]),
+      ]);
+
+      interface CombinedInv {
+        type: 'standard' | 'travel';
+        doc: any;
+        createdAt: Date;
+      }
+
+      const combined: CombinedInv[] = [
+        ...unpaidStandard.map((doc) => ({
+          type: 'standard' as const,
+          doc,
+          createdAt: doc.createdAt ? new Date(doc.createdAt) : new Date(),
+        })),
+        ...unpaidTravel.map((doc) => ({
+          type: 'travel' as const,
+          doc,
+          createdAt: doc.createdAt ? new Date(doc.createdAt) : new Date(),
+        })),
+      ].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
+      // Deduplicate by invoice number so dual-seeded test fixtures don't double allocate
+      const seenInvoiceNumbers = new Set<string>();
+      if (invoiceId) {
+        seenInvoiceNumbers.add(invoiceId.toLowerCase());
+      }
+      for (const alloc of allocations) {
+        if (alloc.invoice_id) seenInvoiceNumbers.add(alloc.invoice_id.toLowerCase());
+      }
+
+      const deduplicated: CombinedInv[] = [];
+      for (const item of combined) {
+        const rawNum =
+          item.type === 'standard' ? item.doc.invoice_number : item.doc.invoiceNumber;
+        const num = (rawNum || item.doc._id.toString()).trim().toLowerCase();
+        if (seenInvoiceNumbers.has(num)) continue;
+        seenInvoiceNumbers.add(num);
+        deduplicated.push(item);
+      }
+
+      for (const item of deduplicated) {
         if (remainingAmount <= 0) break;
-        const totalPaid = CurrencyPrecision.round(
-          (inv.payments || []).reduce((acc, p) => acc + (p.amount || 0), 0),
-        );
-        const due = CurrencyPrecision.round(Math.max(0, inv.amount - totalPaid));
-        if (due <= 0) continue;
-        const allocated = CurrencyPrecision.round(Math.min(due, remainingAmount));
 
-        const pmLower = paymentMethod.toLowerCase().replace(/[\s-]+/g, '_');
-        const mapPm: 'cash' | 'bank_transfer' | 'card' | 'other' =
-          pmLower === 'cash'
-            ? 'cash'
-            : pmLower === 'card'
-            ? 'card'
-            : pmLower === 'bank_transfer'
-            ? 'bank_transfer'
-            : 'other';
+        if (item.type === 'standard') {
+          const stdInv = item.doc;
+          if (
+            invoiceId &&
+            (stdInv._id.toString() === invoiceId || stdInv.invoice_number === invoiceId)
+          ) {
+            continue;
+          }
 
-        inv.payments.push({
-          amount: allocated,
-          date: new Date(),
-          paymentMethod: mapPm,
-        });
-        if (CurrencyPrecision.round(totalPaid + allocated) >= inv.amount) {
-          inv.status = 'paid';
-        }
-        await inv.save();
-        allocations.push({
-          invoice_id: inv.invoiceNumber || inv._id.toString(),
-          allocated_amount: allocated,
-          remaining_invoice_balance: CurrencyPrecision.round(Math.max(0, due - allocated)),
-        });
-        remainingAmount = CurrencyPrecision.round(remainingAmount - allocated);
-      }
-
-      // Also allocate against standard unpaid invoices if remainingAmount > 0
-      if (remainingAmount > 0) {
-        const stdQuery: any = {
-          status: { $nin: ['Paid', 'Cancelled', 'Void', 'paid', 'cancelled', 'void'] },
-        };
-        if (companyId && Types.ObjectId.isValid(companyId)) {
-          stdQuery.companyId = new Types.ObjectId(companyId);
-        }
-        if (customerId && Types.ObjectId.isValid(customerId)) {
-          stdQuery.customer_id = new Types.ObjectId(customerId);
-        } else if (customerName) {
-          const escaped = customerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          stdQuery.customer_name = { $regex: `^${escaped}$`, $options: 'i' };
-        }
-        const unpaidStd = await InvoiceModel.find(stdQuery)
-          .sort({ issue_date: 1, createdAt: 1 })
-          .exec();
-        for (const stdInv of unpaidStd) {
-          if (remainingAmount <= 0) break;
           const grandTotal = CurrencyPrecision.round(stdInv.grand_total || 0);
           const currentPaid = CurrencyPrecision.round(stdInv.paid_amount || 0);
           const due = CurrencyPrecision.round(Math.max(0, grandTotal - currentPaid));
           if (due <= 0) continue;
+
           const allocated = CurrencyPrecision.round(Math.min(due, remainingAmount));
           const newPaid = CurrencyPrecision.round(currentPaid + allocated);
           const newBalance = CurrencyPrecision.round(Math.max(0, grandTotal - newPaid));
@@ -338,11 +365,90 @@ export class ReceiptService {
           stdInv.status = newBalance <= 0 ? 'Paid' : 'Partially Paid';
           await stdInv.save();
 
+          // Sync counterpart travel invoice if present
+          if (stdInv.invoice_number) {
+            const travelCounterpart = await TravelInvoiceModel.findOne({
+              invoiceNumber: stdInv.invoice_number,
+            }).exec();
+            if (travelCounterpart) {
+              const pm =
+                paymentMethod === 'Cash' ? 'cash' : paymentMethod === 'Card' ? 'card' : 'bank_transfer';
+              travelCounterpart.payments = travelCounterpart.payments || [];
+              travelCounterpart.payments.push({
+                amount: allocated,
+                date: date ? new Date(date) : new Date(),
+                paymentMethod: pm as any,
+              });
+              if (newBalance <= 0) travelCounterpart.status = 'paid';
+              await travelCounterpart.save();
+            }
+          }
+
           allocations.push({
             invoice_id: stdInv.invoice_number || stdInv.custom_id || stdInv._id.toString(),
             allocated_amount: allocated,
             remaining_invoice_balance: newBalance,
           });
+
+          remainingAmount = CurrencyPrecision.round(remainingAmount - allocated);
+        } else {
+          const travelInv = item.doc;
+          if (
+            invoiceId &&
+            (travelInv._id.toString() === invoiceId || travelInv.invoiceNumber === invoiceId)
+          ) {
+            continue;
+          }
+
+          const grandTotal = CurrencyPrecision.round(travelInv.amount || 0);
+          const currentPaid = CurrencyPrecision.round(
+            (travelInv.payments || []).reduce(
+              (acc: number, p: any) => acc + (p.amount || 0),
+              0,
+            ),
+          );
+          const due = CurrencyPrecision.round(Math.max(0, grandTotal - currentPaid));
+          if (due <= 0) continue;
+
+          const allocated = CurrencyPrecision.round(Math.min(due, remainingAmount));
+          const newPaid = CurrencyPrecision.round(currentPaid + allocated);
+          const newBalance = CurrencyPrecision.round(Math.max(0, grandTotal - newPaid));
+
+          const pm =
+            paymentMethod === 'Cash' ? 'cash' : paymentMethod === 'Card' ? 'card' : 'bank_transfer';
+
+          travelInv.payments = travelInv.payments || [];
+          travelInv.payments.push({
+            amount: allocated,
+            date: date ? new Date(date) : new Date(),
+            paymentMethod: pm as any,
+          });
+
+          if (newBalance <= 0) {
+            travelInv.status = 'paid';
+          }
+
+          await travelInv.save();
+
+          // Sync counterpart standard invoice if present
+          if (travelInv.invoiceNumber) {
+            const stdCounterpart = await InvoiceModel.findOne({
+              invoice_number: travelInv.invoiceNumber,
+            }).exec();
+            if (stdCounterpart) {
+              stdCounterpart.paid_amount = newPaid;
+              stdCounterpart.balance_amount = newBalance;
+              stdCounterpart.status = newBalance <= 0 ? 'Paid' : 'Partially Paid';
+              await stdCounterpart.save();
+            }
+          }
+
+          allocations.push({
+            invoice_id: travelInv.invoiceNumber || travelInv._id.toString(),
+            allocated_amount: allocated,
+            remaining_invoice_balance: newBalance,
+          });
+
           remainingAmount = CurrencyPrecision.round(remainingAmount - allocated);
         }
       }
@@ -450,10 +556,14 @@ export class ReceiptService {
     }
 
     if (data.status && data.status !== existing.status) {
-      await TransactionModel.findOneAndUpdate(
-        { reference: existing.reference },
-        { status: data.status === 'Cancelled' ? 'cancelled' : 'completed' },
-      ).exec();
+      if (data.status === 'Cancelled') {
+        await this.cancelReceipt(id);
+      } else {
+        await TransactionModel.findOneAndUpdate(
+          { reference: existing.reference },
+          { status: 'completed' },
+        ).exec();
+      }
     }
 
     return updated;
@@ -461,7 +571,83 @@ export class ReceiptService {
 
   async cancelReceipt(id: string): Promise<void> {
     const existing = await this.getReceiptById(id);
+    if (existing.status === 'Cancelled') return;
+
+    // 1. Reverse allocations on invoices
+    if (existing.allocations && Array.isArray(existing.allocations)) {
+      for (const alloc of existing.allocations) {
+        if (!alloc.allocated_amount || alloc.allocated_amount <= 0) continue;
+
+        const inv = Types.ObjectId.isValid(alloc.invoice_id)
+          ? await InvoiceModel.findById(alloc.invoice_id).exec()
+          : await InvoiceModel.findOne({ invoice_number: alloc.invoice_id }).exec();
+
+        if (inv) {
+          const grandTotal = CurrencyPrecision.round(inv.grand_total || 0);
+          const newPaid = CurrencyPrecision.round(
+            Math.max(0, (inv.paid_amount || 0) - alloc.allocated_amount),
+          );
+          const newBalance = CurrencyPrecision.round(Math.max(0, grandTotal - newPaid));
+
+          let status: 'Paid' | 'Partially Paid' | 'Pending' = 'Pending';
+          if (newBalance <= 0 && grandTotal > 0) {
+            status = 'Paid';
+          } else if (newPaid > 0) {
+            status = 'Partially Paid';
+          }
+
+          inv.paid_amount = newPaid;
+          inv.balance_amount = newBalance;
+          inv.status = status;
+          await inv.save();
+        } else {
+          const travelInv = Types.ObjectId.isValid(alloc.invoice_id)
+            ? await TravelInvoiceModel.findById(alloc.invoice_id).exec()
+            : await TravelInvoiceModel.findOne({ invoiceNumber: alloc.invoice_id }).exec();
+
+          if (travelInv && travelInv.payments && Array.isArray(travelInv.payments)) {
+            let toRevert = alloc.allocated_amount;
+            for (let i = travelInv.payments.length - 1; i >= 0 && toRevert > 0; i--) {
+              if (travelInv.payments[i].amount <= toRevert) {
+                toRevert -= travelInv.payments[i].amount;
+                travelInv.payments.splice(i, 1);
+              } else {
+                travelInv.payments[i].amount = CurrencyPrecision.round(
+                  travelInv.payments[i].amount - toRevert,
+                );
+                toRevert = 0;
+              }
+            }
+            const totalPaid = CurrencyPrecision.round(
+              travelInv.payments.reduce((s: number, p: any) => s + (p.amount || 0), 0),
+            );
+            travelInv.status = totalPaid >= travelInv.amount ? 'paid' : 'unpaid';
+            await travelInv.save();
+          }
+        }
+      }
+    }
+
+    // 2. Decrement Customer total_spent
+    if (existing.customerId && Types.ObjectId.isValid(existing.customerId.toString())) {
+      await CustomerModel.findByIdAndUpdate(existing.customerId, {
+        $inc: { total_spent: -existing.amount },
+      }).exec();
+    } else if (existing.customerName) {
+      const escapedName = existing.customerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const customer = await CustomerModel.findOne({
+        name: { $regex: `^${escapedName}$`, $options: 'i' },
+      }).exec();
+      if (customer) {
+        customer.total_spent = Math.max(0, (customer.total_spent || 0) - existing.amount);
+        await customer.save();
+      }
+    }
+
+    // 3. Mark Receipt as Cancelled and clear allocations
     existing.status = 'Cancelled';
+    existing.unallocated_amount = 0;
+    existing.allocations = [];
     await existing.save();
 
     await TransactionModel.findOneAndUpdate(
@@ -491,4 +677,3 @@ export class ReceiptService {
     return { buffer, filename };
   }
 }
-

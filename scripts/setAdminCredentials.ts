@@ -25,8 +25,7 @@ async function setAdmin() {
       company = await CompanyModel.create({
         name: 'Skyfall International Travels LLC',
         code: 'SKYFALL',
-        taxNumber: '100234567800003',
-        currency: 'AED',
+        status: 'active',
       });
       console.log(`Created default company: ${company.name} (${company._id})`);
     } else {
