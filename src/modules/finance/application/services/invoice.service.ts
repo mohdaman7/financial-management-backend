@@ -894,6 +894,14 @@ export class InvoiceService {
       remarks: data.remarks ?? existing.remarks,
       currency: data.currency ?? existing.currency,
       status: data.status ?? existing.status,
+      advance_paid:
+        data.advance_paid ??
+        (data as any).advancePaid ??
+        data.advance_amount ??
+        (data as any).advanceAmount ??
+        (data as any).advance ??
+        existing.advance_paid ??
+        0,
       paid_amount:
         data.paid_amount ??
         (data as any).paidAmount ??
@@ -945,7 +953,9 @@ export class InvoiceService {
       paid_amount: financials.paid_amount,
       balance_amount: financials.balance_amount,
       advance_paid:
-        financials.advance_paid !== undefined ? financials.advance_paid : existing.advance_paid || 0,
+        financials.advance_paid !== undefined && financials.advance_paid > 0
+          ? financials.advance_paid
+          : existing.advance_paid || 0,
       service: financials.service,
     };
 

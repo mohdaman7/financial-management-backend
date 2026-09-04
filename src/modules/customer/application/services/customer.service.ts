@@ -469,10 +469,18 @@ export class CustomerService {
         createdAt: inv.createdAt,
       });
 
-      if (inv.advance_paid && inv.advance_paid > 0) {
+      let effectiveAdvance = inv.advance_paid || 0;
+      if (effectiveAdvance === 0 && inv.paid_amount && inv.paid_amount > 0) {
+        const totalCustomerReceipts = receipts.reduce((sum, r) => sum + (r.amount || 0), 0);
+        if (inv.paid_amount > totalCustomerReceipts) {
+          effectiveAdvance = CurrencyPrecision.round(inv.paid_amount - totalCustomerReceipts);
+        }
+      }
+
+      if (effectiveAdvance > 0) {
         const hasMatchingReceipt = receipts.some(
           (r) =>
-            Math.abs((r.amount || 0) - inv.advance_paid!) < 0.01 &&
+            Math.abs((r.amount || 0) - effectiveAdvance) < 0.01 &&
             (r.date === invDate ||
               Math.abs(
                 new Date(r.createdAt || 0).getTime() - new Date(inv.createdAt || 0).getTime(),
@@ -486,10 +494,15 @@ export class CustomerService {
             type: 'receipt' as const,
             description: `Advance Deposit — Paid at Invoice Creation (${inv.invoice_number || inv.custom_id || 'INV'})`,
             debit: 0.0,
-            credit: CurrencyPrecision.round(inv.advance_paid),
+            credit: CurrencyPrecision.round(effectiveAdvance),
             status: 'received',
             createdAt: new Date(new Date(inv.createdAt).getTime() + 1),
           });
+        }
+        if (!inv.advance_paid || inv.advance_paid === 0) {
+          InvoiceModel.updateOne({ _id: inv._id }, { $set: { advance_paid: effectiveAdvance } })
+            .exec()
+            .catch(() => {});
         }
       }
     }
