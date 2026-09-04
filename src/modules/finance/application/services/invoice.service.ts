@@ -424,19 +424,57 @@ export class InvoiceService {
       CustomerModel.find(queryCompany).lean().exec(),
     ]);
 
-    const fifoInvoices: FifoInvoiceInput[] = stdInvoices.map((inv) => ({
-      id: inv._id.toString(),
-      mongoId: inv._id.toString(),
-      customerId: inv.customer_id ? inv.customer_id.toString() : undefined,
-      customerName: inv.customer_name,
-      grandTotal: inv.grand_total || 0,
-      advancePaid:
+    // Build map of receipt amounts already explicitly allocated to invoices
+    const receiptAllocationsByInv = new Map<string, number>();
+    for (const rec of receipts) {
+      if (rec.allocations && Array.isArray(rec.allocations)) {
+        for (const a of rec.allocations) {
+          if (a.invoice_id) {
+            const k = a.invoice_id.trim().toLowerCase();
+            receiptAllocationsByInv.set(
+              k,
+              CurrencyPrecision.round((receiptAllocationsByInv.get(k) || 0) + (a.allocated_amount || 0)),
+            );
+          }
+        }
+      }
+      if (rec.invoiceId) {
+        const k = rec.invoiceId.toString().trim().toLowerCase();
+        if (!rec.allocations || rec.allocations.length === 0) {
+          receiptAllocationsByInv.set(
+            k,
+            CurrencyPrecision.round((receiptAllocationsByInv.get(k) || 0) + (rec.amount || 0)),
+          );
+        }
+      }
+    }
+
+    const fifoInvoices: FifoInvoiceInput[] = stdInvoices.map((inv) => {
+      const invId = inv._id.toString().toLowerCase();
+      const invNum = (inv.invoice_number || '').trim().toLowerCase();
+      const customId = (inv.custom_id || '').trim().toLowerCase();
+      const receiptAllocated = Math.max(
+        receiptAllocationsByInv.get(invId) || 0,
+        invNum ? receiptAllocationsByInv.get(invNum) || 0 : 0,
+        customId ? receiptAllocationsByInv.get(customId) || 0 : 0,
+      );
+
+      const advancePaid =
         inv.advance_paid !== undefined && inv.advance_paid > 0
           ? inv.advance_paid
-          : (inv.paid_amount || 0),
-      date: inv.issue_date || (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : ''),
-      createdAt: inv.createdAt ? new Date(inv.createdAt) : new Date(),
-    }));
+          : CurrencyPrecision.round(Math.max(0, (inv.paid_amount || 0) - receiptAllocated));
+
+      return {
+        id: inv._id.toString(),
+        mongoId: inv._id.toString(),
+        customerId: inv.customer_id ? inv.customer_id.toString() : undefined,
+        customerName: inv.customer_name,
+        grandTotal: inv.grand_total || 0,
+        advancePaid,
+        date: inv.issue_date || (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : ''),
+        createdAt: inv.createdAt ? new Date(inv.createdAt) : new Date(),
+      };
+    });
 
     const fifoReceipts: FifoReceiptInput[] = receipts.map((rec) => ({
       id: rec._id.toString(),
@@ -446,6 +484,11 @@ export class InvoiceService {
       amount: rec.amount || 0,
       date: rec.date || (rec.createdAt ? new Date(rec.createdAt).toISOString().split('T')[0] : ''),
       createdAt: rec.createdAt ? new Date(rec.createdAt) : new Date(),
+      invoiceId: rec.invoiceId ? rec.invoiceId.toString() : undefined,
+      allocations: (rec.allocations || []).map((a: any) => ({
+        invoice_id: a.invoice_id,
+        allocated_amount: a.allocated_amount,
+      })),
     }));
 
     const customerIdentities: CustomerIdentity[] = customers.map((c: any) => ({

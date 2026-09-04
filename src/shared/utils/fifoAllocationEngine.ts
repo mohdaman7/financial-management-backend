@@ -22,6 +22,8 @@ export interface FifoReceiptInput {
   amount: number;
   date: string;
   createdAt: Date;
+  invoiceId?: string;
+  allocations?: Array<{ invoice_id: string; allocated_amount: number }>;
 }
 
 export interface CustomerIdentity {
@@ -230,6 +232,13 @@ export class FifoAllocationEngine {
         };
       });
 
+      // Index invoice states by various identifiers for targeted allocations
+      const invoiceMap = new Map<string, InvoiceState>();
+      for (const st of invStates) {
+        if (st.input.id) invoiceMap.set(st.input.id.toLowerCase(), st);
+        if (st.input.mongoId) invoiceMap.set(st.input.mongoId.toLowerCase(), st);
+      }
+
       // 2. If there is initial excess advance credit, apply it to subsequent unpaid invoices in order
       if (unallocatedCustomerCredit > 0) {
         for (const st of invStates) {
@@ -243,19 +252,56 @@ export class FifoAllocationEngine {
         }
       }
 
-      // 3. Allocate external Receipts in FIFO order
+      // 3. Allocate Receipts: Phase 1 (Direct/Targeted) & Phase 2 (FIFO for Unallocated Remaining)
       for (const rec of custRecList) {
         let recRemaining = CurrencyPrecision.round(Math.max(0, rec.amount || 0));
         let recAllocated = 0;
 
-        for (const st of invStates) {
-          if (recRemaining <= 0) break;
-          if (st.currentBalance > 0) {
-            const allocate = Math.min(recRemaining, st.currentBalance);
-            st.allocatedFromReceipts = CurrencyPrecision.round(st.allocatedFromReceipts + allocate);
-            st.currentBalance = CurrencyPrecision.round(st.currentBalance - allocate);
-            recAllocated = CurrencyPrecision.round(recAllocated + allocate);
-            recRemaining = CurrencyPrecision.round(recRemaining - allocate);
+        // Phase 1: Targeted Allocation if receipt specifies target invoice(s)
+        if (rec.allocations && rec.allocations.length > 0) {
+          for (const directAlloc of rec.allocations) {
+            if (recRemaining <= 0) break;
+            const targetRef = directAlloc.invoice_id ? directAlloc.invoice_id.trim().toLowerCase() : '';
+            const targetSt = invoiceMap.get(targetRef);
+            if (targetSt && targetSt.currentBalance > 0) {
+              const maxAlloc = CurrencyPrecision.round(
+                Math.min(recRemaining, targetSt.currentBalance, directAlloc.allocated_amount || recRemaining)
+              );
+              if (maxAlloc > 0) {
+                targetSt.allocatedFromReceipts = CurrencyPrecision.round(targetSt.allocatedFromReceipts + maxAlloc);
+                targetSt.currentBalance = CurrencyPrecision.round(targetSt.currentBalance - maxAlloc);
+                recAllocated = CurrencyPrecision.round(recAllocated + maxAlloc);
+                recRemaining = CurrencyPrecision.round(recRemaining - maxAlloc);
+              }
+            }
+          }
+        } else if (rec.invoiceId) {
+          const targetRef = rec.invoiceId.trim().toLowerCase();
+          const targetSt = invoiceMap.get(targetRef);
+          if (targetSt && targetSt.currentBalance > 0) {
+            const maxAlloc = CurrencyPrecision.round(Math.min(recRemaining, targetSt.currentBalance));
+            if (maxAlloc > 0) {
+              targetSt.allocatedFromReceipts = CurrencyPrecision.round(targetSt.allocatedFromReceipts + maxAlloc);
+              targetSt.currentBalance = CurrencyPrecision.round(targetSt.currentBalance - maxAlloc);
+              recAllocated = CurrencyPrecision.round(recAllocated + maxAlloc);
+              recRemaining = CurrencyPrecision.round(recRemaining - maxAlloc);
+            }
+          }
+        }
+
+        // Phase 2: FIFO allocation across remaining unpaid customer invoices for unallocated funds
+        if (recRemaining > 0) {
+          for (const st of invStates) {
+            if (recRemaining <= 0) break;
+            if (st.currentBalance > 0) {
+              const allocate = CurrencyPrecision.round(Math.min(recRemaining, st.currentBalance));
+              if (allocate > 0) {
+                st.allocatedFromReceipts = CurrencyPrecision.round(st.allocatedFromReceipts + allocate);
+                st.currentBalance = CurrencyPrecision.round(st.currentBalance - allocate);
+                recAllocated = CurrencyPrecision.round(recAllocated + allocate);
+                recRemaining = CurrencyPrecision.round(recRemaining - allocate);
+              }
+            }
           }
         }
 
