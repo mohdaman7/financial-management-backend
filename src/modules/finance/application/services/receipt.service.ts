@@ -305,6 +305,47 @@ export class ReceiptService {
         });
         remainingAmount = CurrencyPrecision.round(remainingAmount - allocated);
       }
+
+      // Also allocate against standard unpaid invoices if remainingAmount > 0
+      if (remainingAmount > 0) {
+        const stdQuery: any = {
+          status: { $nin: ['Paid', 'Cancelled', 'Void', 'paid', 'cancelled', 'void'] },
+        };
+        if (companyId && Types.ObjectId.isValid(companyId)) {
+          stdQuery.companyId = new Types.ObjectId(companyId);
+        }
+        if (customerId && Types.ObjectId.isValid(customerId)) {
+          stdQuery.customer_id = new Types.ObjectId(customerId);
+        } else if (customerName) {
+          const escaped = customerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          stdQuery.customer_name = { $regex: `^${escaped}$`, $options: 'i' };
+        }
+        const unpaidStd = await InvoiceModel.find(stdQuery)
+          .sort({ issue_date: 1, createdAt: 1 })
+          .exec();
+        for (const stdInv of unpaidStd) {
+          if (remainingAmount <= 0) break;
+          const grandTotal = CurrencyPrecision.round(stdInv.grand_total || 0);
+          const currentPaid = CurrencyPrecision.round(stdInv.paid_amount || 0);
+          const due = CurrencyPrecision.round(Math.max(0, grandTotal - currentPaid));
+          if (due <= 0) continue;
+          const allocated = CurrencyPrecision.round(Math.min(due, remainingAmount));
+          const newPaid = CurrencyPrecision.round(currentPaid + allocated);
+          const newBalance = CurrencyPrecision.round(Math.max(0, grandTotal - newPaid));
+
+          stdInv.paid_amount = newPaid;
+          stdInv.balance_amount = newBalance;
+          stdInv.status = newBalance <= 0 ? 'Paid' : 'Partially Paid';
+          await stdInv.save();
+
+          allocations.push({
+            invoice_id: stdInv.invoice_number || stdInv.custom_id || stdInv._id.toString(),
+            allocated_amount: allocated,
+            remaining_invoice_balance: newBalance,
+          });
+          remainingAmount = CurrencyPrecision.round(remainingAmount - allocated);
+        }
+      }
     }
 
     // Record Income Transaction in Finance module

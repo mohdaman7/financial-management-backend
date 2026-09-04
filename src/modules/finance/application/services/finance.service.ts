@@ -5,6 +5,7 @@ import { ITransaction, TransactionModel } from '../../infrastructure/models/Tran
 import { IBankAccount, BankAccountModel } from '../../infrastructure/models/BankAccount.model';
 import { ReceiptModel } from '../../infrastructure/models/Receipt.model';
 import { InvoiceModel } from '../../infrastructure/models/Invoice.model';
+import { CustomerModel } from '../../../customer/infrastructure/models/Customer.model';
 import { TravelInvoiceModel } from '../../../travel/infrastructure/models/TravelInvoice.model';
 import { CurrencyPrecision } from '@shared/utils/currencyPrecision';
 import { AppError } from '@shared/errors/AppError';
@@ -819,8 +820,8 @@ export class FinanceService {
       .lean()
       .exec();
 
-    // 2. Fetch non-cancelled invoices for company
-    const [dbInvoices, dbTravelInvoices] = await Promise.all([
+    // 2. Fetch non-cancelled invoices for company & customer identities
+    const [dbInvoices, dbTravelInvoices, dbCustomers]: [any[], any[], any[]] = await Promise.all([
       InvoiceModel.find({
         ...queryCompany,
         status: { $nin: ['Cancelled', 'cancelled', 'Void'] },
@@ -834,6 +835,7 @@ export class FinanceService {
         .sort({ createdAt: 1 })
         .lean()
         .exec(),
+      CustomerModel.find(queryCompany).lean().exec(),
     ]);
 
     // Build unified customer identity mapping between ID and Name
@@ -854,6 +856,10 @@ export class FinanceService {
       }
     };
 
+    dbCustomers.forEach((c) => {
+      registerCustomerIdentity(c._id, c.name);
+      if ((c as any).company_name) registerCustomerIdentity(c._id, (c as any).company_name);
+    });
     dbReceipts.forEach((r) => registerCustomerIdentity(r.customerId, r.customerName));
     dbInvoices.forEach((i) => registerCustomerIdentity(i.customer_id, i.customer_name));
     dbTravelInvoices.forEach((t) => registerCustomerIdentity(t.customerId));
@@ -878,7 +884,11 @@ export class FinanceService {
 
     dbInvoices.forEach((inv) => {
       const key = getCanonicalKey(inv.customer_id, inv.customer_name);
-      const amount = CurrencyPrecision.round(inv.grand_total || 0);
+      const total = CurrencyPrecision.round(inv.grand_total || 0);
+      const initialPaid = CurrencyPrecision.round(
+        inv.advance_paid !== undefined && inv.advance_paid > 0 ? inv.advance_paid : 0,
+      );
+      const amount = CurrencyPrecision.round(Math.max(0, total - initialPaid));
       if (amount > 0) {
         const dateStr =
           inv.issue_date || (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : '');
@@ -979,6 +989,13 @@ export class FinanceService {
           Math.max(0, totalReceived - allocatedAmount),
         );
 
+        if (rec._id && rec.unallocated_amount !== unallocatedBalance) {
+          ReceiptModel.updateOne(
+            { _id: rec._id },
+            { $set: { unallocated_amount: unallocatedBalance } },
+          ).exec().catch(() => {});
+        }
+
         let status = 'Unallocated';
         if (allocatedAmount === 0) {
           status = 'Unallocated';
@@ -1051,6 +1068,8 @@ export class FinanceService {
         filtered = filtered.filter((adv) => adv.status === 'Partially Allocated');
       } else if (st === 'fullyallocated') {
         filtered = filtered.filter((adv) => adv.status === 'Fully Allocated');
+      } else if (st === 'active' || st === 'open') {
+        filtered = filtered.filter((adv) => adv.unallocatedBalance > 0);
       }
     }
 

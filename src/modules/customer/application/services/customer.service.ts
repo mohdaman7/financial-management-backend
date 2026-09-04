@@ -414,12 +414,18 @@ export class CustomerService {
       createdAt: Date;
     }> = receipts.map((rec) => {
       const recDate = rec.date || (rec.createdAt ? rec.createdAt.toISOString().split('T')[0] : '');
-      const desc =
-        rec.notes ||
-        (rec.paymentMethod ? `${rec.paymentMethod} - Advance Payment` : 'Receipt Payment');
-      const isAdvance =
-        (rec.unallocated_amount !== undefined && rec.unallocated_amount > 0) ||
-        rec.allocations?.length === 0;
+      const allocatedTotal = CurrencyPrecision.round(
+        (rec.allocations || []).reduce((sum: number, a: any) => sum + (a.allocated_amount || 0), 0),
+      );
+      const unallocated =
+        rec.unallocated_amount !== undefined
+          ? rec.unallocated_amount
+          : CurrencyPrecision.round(Math.max(0, (rec.amount || 0) - allocatedTotal));
+      const isAdvance = unallocated > 0;
+      const defaultDesc = isAdvance
+        ? (rec.paymentMethod ? `${rec.paymentMethod} - Advance Payment` : 'Advance Payment')
+        : (rec.paymentMethod ? `${rec.paymentMethod} - Payment Receipt` : 'Receipt Payment');
+      const desc = rec.notes || defaultDesc;
 
       return {
         id: rec._id.toString(),
@@ -464,17 +470,27 @@ export class CustomerService {
       });
 
       if (inv.advance_paid && inv.advance_paid > 0) {
-        formattedReceipts.push({
-          id: `dep-${inv._id.toString()}`,
-          date: invDate,
-          refNo: `DEP-${inv.invoice_number || inv.custom_id || 'INV'}`,
-          type: 'receipt' as const,
-          description: `Advance Deposit — Paid at Invoice Creation (${inv.invoice_number || inv.custom_id || 'INV'})`,
-          debit: 0.0,
-          credit: CurrencyPrecision.round(inv.advance_paid),
-          status: 'received',
-          createdAt: new Date(new Date(inv.createdAt).getTime() + 1),
-        });
+        const hasMatchingReceipt = receipts.some(
+          (r) =>
+            Math.abs((r.amount || 0) - inv.advance_paid!) < 0.01 &&
+            (r.date === invDate ||
+              Math.abs(
+                new Date(r.createdAt || 0).getTime() - new Date(inv.createdAt || 0).getTime(),
+              ) < 60000),
+        );
+        if (!hasMatchingReceipt) {
+          formattedReceipts.push({
+            id: `dep-${inv._id.toString()}`,
+            date: invDate,
+            refNo: `DEP-${inv.invoice_number || inv.custom_id || 'INV'}`,
+            type: 'receipt' as const,
+            description: `Advance Deposit — Paid at Invoice Creation (${inv.invoice_number || inv.custom_id || 'INV'})`,
+            debit: 0.0,
+            credit: CurrencyPrecision.round(inv.advance_paid),
+            status: 'received',
+            createdAt: new Date(new Date(inv.createdAt).getTime() + 1),
+          });
+        }
       }
     }
 

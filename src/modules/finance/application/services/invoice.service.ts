@@ -453,16 +453,19 @@ export class InvoiceService {
     };
 
     // Auto-heal missing customer_id on invoices and receipts in database
+    const healPromises: Promise<any>[] = [];
     for (const inv of stdInvoices) {
       if ((!inv.customer_id || inv.customer_id.toString() === '') && inv.customer_name) {
         const norm = normalizeName(inv.customer_name);
         const matchedId = nameToCustomerId.get(norm);
         if (matchedId) {
           (inv as any).customer_id = new Types.ObjectId(matchedId);
-          InvoiceModel.updateOne(
-            { _id: inv._id },
-            { $set: { customer_id: new Types.ObjectId(matchedId) } }
-          ).exec().catch(() => {});
+          healPromises.push(
+            InvoiceModel.updateOne(
+              { _id: inv._id },
+              { $set: { customer_id: new Types.ObjectId(matchedId) } }
+            ).exec().catch(() => null)
+          );
         }
       }
     }
@@ -473,12 +476,17 @@ export class InvoiceService {
         const matchedId = nameToCustomerId.get(norm);
         if (matchedId) {
           (rec as any).customerId = new Types.ObjectId(matchedId);
-          ReceiptModel.updateOne(
-            { _id: rec._id },
-            { $set: { customerId: new Types.ObjectId(matchedId) } }
-          ).exec().catch(() => {});
+          healPromises.push(
+            ReceiptModel.updateOne(
+              { _id: rec._id },
+              { $set: { customerId: new Types.ObjectId(matchedId) } }
+            ).exec().catch(() => null)
+          );
         }
       }
+    }
+    if (healPromises.length > 0) {
+      await Promise.all(healPromises);
     }
 
     const customerInvoicesMap = new Map<
@@ -552,6 +560,13 @@ export class InvoiceService {
           inv.remainingDue = CurrencyPrecision.round(inv.remainingDue - toAllocate);
           availableCredit = CurrencyPrecision.round(availableCredit - toAllocate);
         }
+
+        if (rec._id && rec.unallocated_amount !== availableCredit) {
+          ReceiptModel.updateOne(
+            { _id: rec._id },
+            { $set: { unallocated_amount: availableCredit } },
+          ).exec().catch(() => {});
+        }
       }
 
       for (const inv of invoiceDues) {
@@ -564,6 +579,13 @@ export class InvoiceService {
           status = 'Partially Paid';
         }
         allocationResultMap.set(inv.id, { paid: totalPaid, remaining, status });
+
+        if (Types.ObjectId.isValid(inv.id)) {
+          InvoiceModel.updateOne(
+            { _id: new Types.ObjectId(inv.id) },
+            { $set: { paid_amount: totalPaid, balance_amount: remaining, status } },
+          ).exec().catch(() => {});
+        }
       }
     });
 
