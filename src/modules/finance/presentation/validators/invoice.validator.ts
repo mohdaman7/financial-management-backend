@@ -51,7 +51,7 @@ export const createInvoiceSchema = z.object({
   customer_phone: z.string().optional(),
   customer_address: z.string().optional(),
   passenger_name: z.string().optional(),
-  lead_by: z.string().optional().default('SAMEER EDAKKADAMBAN'),
+  lead_by: z.string().optional(),
   lead_owner: z.string().optional(),
   employee: z.string().optional().default('Staff'),
   category: z.string().optional().default('General'),

@@ -1,6 +1,5 @@
 import { InvoiceModel } from '../../../finance/infrastructure/models/Invoice.model';
 import { ReceiptModel } from '../../../finance/infrastructure/models/Receipt.model';
-import { TravelInvoiceModel } from '../../../travel/infrastructure/models/TravelInvoice.model';
 import { AttendanceRepository } from '../../../attendance/infrastructure/repositories/attendance.repository';
 import { EmployeeRepository } from '../../../employee/infrastructure/repositories/employee.repository';
 import { TransactionRepository } from '../../../finance/infrastructure/repositories/transaction.repository';
@@ -162,12 +161,11 @@ export class DashboardService {
       ? { $or: [{ companyId: companyObjectId }, { companyId: null }] }
       : {};
 
-    const [invoices, travelInvoices, receipts] = await Promise.all([
+    const [invoices, receipts] = await Promise.all([
       InvoiceModel.find({
         ...queryCompany,
         status: { $nin: ['Cancelled', 'cancelled', 'Void', 'void'] },
       }).lean().exec(),
-      TravelInvoiceModel.find(queryCompany).lean().exec(),
       ReceiptModel.find({
         ...queryCompany,
         status: { $nin: ['Cancelled', 'cancelled'] },
@@ -224,35 +222,6 @@ export class DashboardService {
       }
     }
 
-    for (const trInv of travelInvoices) {
-      const amount = CurrencyPrecision.round(trInv.amount || 0);
-      totalRevenue += amount;
-
-      const rawDate = trInv.createdAt ? new Date(trInv.createdAt) : now;
-      const invDate = rawDate.toISOString().split('T')[0];
-
-      if (invDate === todayStr) {
-        todaySales += amount;
-      }
-      if (rawDate.getFullYear() === currentYear && rawDate.getMonth() === currentMonth) {
-        monthSales += amount;
-      }
-
-      if (trInv.status === 'paid') {
-        paidCount++;
-      }
-
-      const emp = (trInv as any).leadOwner || (trInv as any).leadBy || 'Travel Team';
-      employeeMap.set(emp, CurrencyPrecision.round((employeeMap.get(emp) || 0) + amount));
-
-      const dayName = daysOfWeek[rawDate.getDay()];
-      const dayData = chartMap.get(dayName);
-      if (dayData) {
-        dayData.bookings = CurrencyPrecision.round(dayData.bookings + amount);
-        dayData.revenue = CurrencyPrecision.round(dayData.revenue + amount);
-      }
-    }
-
     let receiptTotal = 0;
     for (const rec of receipts) {
       receiptTotal += CurrencyPrecision.round(rec.amount || 0);
@@ -265,7 +234,7 @@ export class DashboardService {
 
     const outstanding = CurrencyPrecision.round(Math.max(0, totalRevenue - totalReceived));
     const advanceTotal = CurrencyPrecision.round(Math.max(0, totalReceived - totalRevenue));
-    const totalInvoices = invoices.length + travelInvoices.length;
+    const totalInvoices = invoices.length;
     const avgRevenue = totalInvoices > 0 ? CurrencyPrecision.round(totalRevenue / totalInvoices) : 0;
     const conversionRate = totalInvoices > 0 ? ((paidCount / totalInvoices) * 100).toFixed(1) : '0.0';
 

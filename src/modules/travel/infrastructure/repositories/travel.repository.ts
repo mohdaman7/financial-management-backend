@@ -1,7 +1,6 @@
 import { TravelCustomerModel, ITravelCustomer } from '../models/TravelCustomer.model';
 import { TravelBookingModel, ITravelBooking } from '../models/TravelBooking.model';
 import { TravelProposalModel, ITravelProposal } from '../models/TravelProposal.model';
-import { TravelInvoiceModel, ITravelInvoice } from '../models/TravelInvoice.model';
 import { Types } from 'mongoose';
 
 export class TravelRepository {
@@ -95,27 +94,4 @@ export class TravelRepository {
     return TravelProposalModel.findByIdAndDelete(id).exec();
   }
 
-  // --- Invoices ---
-  async findInvoiceById(id: string): Promise<ITravelInvoice | null> {
-    return TravelInvoiceModel.findById(id).populate('bookingId').exec();
-  }
-
-  async findInvoicesByCompany(companyId: string): Promise<ITravelInvoice[]> {
-    return TravelInvoiceModel.find({ companyId: new Types.ObjectId(companyId) })
-      .populate('bookingId')
-      .exec();
-  }
-
-  async createInvoice(data: Partial<ITravelInvoice>): Promise<ITravelInvoice> {
-    const invoice = new TravelInvoiceModel(data);
-    return invoice.save();
-  }
-
-  async updateInvoice(id: string, data: Partial<ITravelInvoice>): Promise<ITravelInvoice | null> {
-    return TravelInvoiceModel.findByIdAndUpdate(id, data, { returnDocument: 'after' }).exec();
-  }
-
-  async deleteInvoice(id: string): Promise<ITravelInvoice | null> {
-    return TravelInvoiceModel.findByIdAndDelete(id).exec();
-  }
 }

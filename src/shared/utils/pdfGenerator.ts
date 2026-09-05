@@ -124,7 +124,7 @@ ${proposal.items
 
 0 -40 Td
 /F1 10 Tf
-(Authorized Signatory: SAMEER EDAKKADAMBAN) Tj
+(Authorized Signatory: ${proposal.created_by || '_________________________'}) Tj
 0 -14 Td
 /F2 8 Tf
 (Generated electronically by Skyfall ERP System v2.4.0. Valid without physical stamp.) Tj
@@ -229,7 +229,7 @@ BT
 /F2 10 Tf
 (Payment Purpose / Notes: ${receipt.notes || 'Settlement for government visa and travel services.'}) Tj
 0 -16 Td
-(Received By: ${receipt.received_by || 'SAMEER EDAKKADAMBAN'}) Tj
+(Received By: ${receipt.received_by || '_________________________'}) Tj
 
 0 -45 Td
 /F1 10 Tf

@@ -327,6 +327,7 @@ export class CustomerService {
       description: string;
       debit: number;
       credit: number;
+      outstanding: number;
       status: string;
       createdAt: Date;
     }>;
@@ -338,6 +339,7 @@ export class CustomerService {
       description: string;
       debit: number;
       credit: number;
+      unallocated: number;
       status: string;
       createdAt: Date;
     }>;
@@ -401,6 +403,7 @@ export class CustomerService {
       description: string;
       debit: number;
       credit: number;
+      unallocated: number;
       status: string;
       createdAt: Date;
     }> = receipts.map((rec) => {
@@ -426,6 +429,7 @@ export class CustomerService {
         description: desc,
         debit: 0.0,
         credit: CurrencyPrecision.round(rec.amount || 0),
+        unallocated,
         status: isAdvance ? 'advance_credit' : (rec.status || 'received').toLowerCase(),
         createdAt: rec.createdAt,
       };
@@ -439,6 +443,7 @@ export class CustomerService {
       description: string;
       debit: number;
       credit: number;
+      outstanding: number;
       status: string;
       createdAt: Date;
     }> = [];
@@ -456,6 +461,7 @@ export class CustomerService {
         description: desc,
         debit: CurrencyPrecision.round(inv.grand_total || 0),
         credit: 0.0,
+        outstanding: CurrencyPrecision.round(inv.balance_amount !== undefined ? inv.balance_amount : (inv.grand_total || 0)),
         status: (inv.status || 'pending').toLowerCase().replace(/\s+/g, '_'),
         createdAt: inv.createdAt,
       });
@@ -471,6 +477,7 @@ export class CustomerService {
           description: `Advance Deposit — Paid at Invoice Creation (${inv.invoice_number || inv.custom_id || 'INV'})`,
           debit: 0.0,
           credit: effectiveAdvance,
+          unallocated: 0,
           status: 'received',
           createdAt: new Date(new Date(inv.createdAt).getTime() + 1),
         });
@@ -498,10 +505,10 @@ export class CustomerService {
     );
 
     const outstandingDues = CurrencyPrecision.round(
-      Math.max(0, totalBilledDebit - totalReceivedCredit),
+      invoices.reduce((acc, inv) => acc + inv.outstanding, 0),
     );
     const remainingAdvanceCredit = CurrencyPrecision.round(
-      Math.max(0, totalReceivedCredit - totalBilledDebit),
+      receipts.reduce((acc, rec) => acc + rec.unallocated, 0),
     );
 
     let accountStatus: 'SETTLED_AND_CREDIT_AVAILABLE' | 'DUE_OUTSTANDING' | 'SETTLED' = 'SETTLED';

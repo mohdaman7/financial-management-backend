@@ -11,7 +11,6 @@ import {
   createBookingSchema,
   createProposalSchema,
   updateProposalStatusSchema,
-  recordPaymentSchema,
 } from '../validators/travel.validator';
 
 const router = Router();
@@ -144,46 +143,6 @@ router.delete(
   controller.deleteProposal,
 );
 
-// --- Invoices & Payments ---
-router.get(
-  '/invoices',
-  authenticate,
-  requirePermission('view_travel'),
-  authorizeCompany,
-  controller.listInvoices,
-);
 
-router.get(
-  '/invoices/:id',
-  authenticate,
-  requirePermission('view_travel'),
-  authorizeCompany,
-  controller.getInvoiceById,
-);
-
-router.post(
-  '/invoices',
-  authenticate,
-  requirePermission('manage_travel'),
-  authorizeCompany,
-  controller.createInvoice,
-);
-
-router.delete(
-  '/invoices/:id',
-  authenticate,
-  requirePermission('manage_travel'),
-  authorizeCompany,
-  controller.deleteInvoice,
-);
-
-router.post(
-  '/invoices/:id/payments',
-  authenticate,
-  requirePermission('manage_travel'),
-  authorizeCompany,
-  validate(recordPaymentSchema),
-  controller.recordPayment,
-);
 
 export default router;

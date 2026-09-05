@@ -362,8 +362,8 @@ export class InvoiceService {
       customer_phone: data.customer_phone || '',
       customer_address: data.customer_address || '',
       passenger_name: data.passenger_name || '',
-      lead_by: data.lead_by || 'SAMEER EDAKKADAMBAN',
-      lead_owner: data.lead_owner || data.lead_by || 'SAMEER EDAKKADAMBAN',
+      lead_by: (data.lead_by && data.lead_by.trim().toLowerCase() !== 'sameer edakkadamban') ? data.lead_by.trim() : '',
+      lead_owner: (data.lead_owner && data.lead_owner.trim().toLowerCase() !== 'sameer edakkadamban') ? data.lead_owner.trim() : ((data.lead_by && data.lead_by.trim().toLowerCase() !== 'sameer edakkadamban') ? data.lead_by.trim() : ''),
       employee: data.employee || 'Staff',
       category: data.category || 'Visa Services',
       issue_date: data.issue_date || new Date().toISOString().split('T')[0],
@@ -395,6 +395,39 @@ export class InvoiceService {
 
       created_by: createdBy,
     });
+
+    // Reverse FIFO: Auto-apply any existing unallocated advance credit from this customer
+    if (customerIdObj && invoice.balance_amount > 0) {
+      let remainingInvoiceDue = invoice.balance_amount;
+      const advances = await ReceiptModel.find({
+        customerId: customerIdObj,
+        status: { $nin: ['Cancelled', 'cancelled'] },
+        unallocated_amount: { $gt: 0 }
+      }).sort({ date: 1, createdAt: 1 }).exec();
+
+      for (const advanceRec of advances) {
+        if (remainingInvoiceDue <= 0) break;
+
+        const allocatable = Math.min(advanceRec.unallocated_amount!, remainingInvoiceDue);
+        remainingInvoiceDue = CurrencyPrecision.round(remainingInvoiceDue - allocatable);
+
+        advanceRec.unallocated_amount = CurrencyPrecision.round(advanceRec.unallocated_amount! - allocatable);
+        advanceRec.allocations = advanceRec.allocations || [];
+        advanceRec.allocations.push({
+          invoice_id: invoice.invoice_number || invoice.custom_id || invoice._id.toString(),
+          allocated_amount: allocatable,
+          remaining_invoice_balance: remainingInvoiceDue
+        });
+        await advanceRec.save();
+      }
+
+      if (remainingInvoiceDue < invoice.balance_amount) {
+        invoice.paid_amount = CurrencyPrecision.round((invoice.paid_amount || 0) + (invoice.balance_amount - remainingInvoiceDue));
+        invoice.balance_amount = remainingInvoiceDue;
+        invoice.status = remainingInvoiceDue <= 0 ? 'Paid' : 'Partially Paid';
+        await invoice.save();
+      }
+    }
 
     return this.formatInvoiceDetail(invoice);
   }
@@ -533,6 +566,7 @@ export class InvoiceService {
       const custIdStr = inv.customer_id ? inv.customer_id.toString() : '';
 
       return {
+        _id: inv._id.toString(),
         id: inv.custom_id || inv._id.toString(),
         invoice_number: inv.invoice_number,
         invoiceNumber: inv.invoice_number,

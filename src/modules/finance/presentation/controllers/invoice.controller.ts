@@ -12,6 +12,8 @@ export class InvoiceController {
       const companyId = req.companyId as string | undefined;
       const createdBy = (req.user as any)?.name || req.user?.email || 'System';
 
+      console.log("BACKEND RECEIVED INVOICE PAYLOAD:", req.body);
+      
       const invoice = await this.getInvoiceService().createInvoice(companyId, req.body, createdBy);
 
       res.status(201).json({

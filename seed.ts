@@ -97,7 +97,7 @@ async function seed() {
     const usersToSeed = [
       {
         email: 'superadmin@skyfall.ae',
-        name: 'CHIEF EXECUTIVE',
+        name: 'ADMIN',
         role: 'super_admin' as const,
         isSuperAdmin: true,
         avatar_color: 'bg-purple-600',
@@ -109,7 +109,7 @@ async function seed() {
       },
       {
         email: 'admin@skyfall.ae',
-        name: 'SAMEER EDAKKADAMBAN',
+        name: 'ADMIN',
         role: 'admin' as const,
         isSuperAdmin: false,
         avatar_color: 'bg-blue-600',
@@ -121,7 +121,7 @@ async function seed() {
       },
       {
         email: 'employee@skyfall.ae',
-        name: 'HUDA MANSOOR',
+        name: 'EMPLOYEE',
         role: 'employee' as const,
         isSuperAdmin: false,
         avatar_color: 'bg-emerald-600',

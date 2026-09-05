@@ -53,7 +53,7 @@ export interface ITravelProposal extends Document {
   created_by?: string;
   notes?: string;
   status: 'draft' | 'sent' | 'accepted' | 'declined' | 'expired' | 'approved' | 'rejected' | string;
-  invoiceId?: Types.ObjectId | string | null;
+
   createdAt: Date;
   updatedAt: Date;
   created_at?: string;
@@ -108,7 +108,7 @@ const TravelProposalSchema = new Schema<ITravelProposal>(
       enum: ['draft', 'sent', 'accepted', 'declined', 'expired', 'approved', 'rejected'],
       default: 'draft',
     },
-    invoiceId: { type: Schema.Types.ObjectId, ref: 'TravelInvoice', default: null },
+
   },
   {
     timestamps: true,

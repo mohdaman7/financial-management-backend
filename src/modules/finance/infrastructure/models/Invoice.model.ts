@@ -165,7 +165,7 @@ const InvoiceSchema = new Schema<IInvoice>(
     customer_phone: { type: String, default: '' },
     customer_address: { type: String, default: '' },
     passenger_name: { type: String, default: '' },
-    lead_by: { type: String, required: true, trim: true },
+    lead_by: { type: String, trim: true, default: '' },
     lead_owner: { type: String, default: '' },
     employee: { type: String, default: 'Staff' },
     category: {

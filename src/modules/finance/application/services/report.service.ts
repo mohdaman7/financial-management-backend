@@ -1,7 +1,6 @@
 import { Types } from 'mongoose';
 import { TransactionModel } from '../../infrastructure/models/Transaction.model';
 import { InvoiceModel } from '../../infrastructure/models/Invoice.model';
-import { TravelInvoiceModel } from '../../../travel/infrastructure/models/TravelInvoice.model';
 import { ReceiptModel } from '../../infrastructure/models/Receipt.model';
 import { TravelBookingModel } from '../../../travel/infrastructure/models/TravelBooking.model';
 import { TravelProposalModel } from '../../../travel/infrastructure/models/TravelProposal.model';
@@ -159,9 +158,8 @@ export class ReportService {
       Object.assign(travelQuery, this.buildDateFilter(filters.start_date, filters.end_date, 'createdAt'));
     }
 
-    const [stdInvoices, travelInvoices] = await Promise.all([
+    const [stdInvoices] = await Promise.all([
       InvoiceModel.find(stdQuery).sort({ createdAt: -1 }).exec(),
-      TravelInvoiceModel.find(travelQuery).populate('customerId').sort({ createdAt: -1 }).exec(),
     ]);
 
     const formattedStd = stdInvoices.map((inv) => {
@@ -198,40 +196,7 @@ export class ReportService {
       };
     });
 
-    const formattedTravel = travelInvoices.map((inv) => {
-      const grandTotal = inv.amount || 0;
-      const paidAmount = (inv.payments || []).reduce(
-        (sum: number, p: any) => sum + (p.amount || 0),
-        0,
-      );
-      const dueBalance = Math.max(0, CurrencyPrecision.round(grandTotal - paidAmount));
-
-      let status = 'pending';
-      if (paidAmount >= grandTotal && grandTotal > 0) {
-        status = 'paid';
-      } else if (paidAmount > 0 && paidAmount < grandTotal) {
-        status = 'partially_paid';
-      }
-
-      const cust = inv.customerId as any;
-      return {
-        id: inv._id.toString(),
-        invoice_number: inv.invoiceNumber,
-        customer_name: cust?.name || 'Customer',
-        customer_id: cust?._id?.toString() || '',
-        subtotal: Math.round((grandTotal / 1.05) * 100) / 100,
-        vat: Math.round((grandTotal - grandTotal / 1.05) * 100) / 100,
-        total_amount: grandTotal,
-        paid_amount: paidAmount,
-        due_balance: dueBalance,
-        due_date: inv.dueDate ? new Date(inv.dueDate).toISOString().split('T')[0] : '',
-        status,
-        lead_owner: 'Operations Staff',
-        created_at: inv.createdAt,
-      };
-    });
-
-    const formattedInvoices = [...formattedStd, ...formattedTravel].sort(
+    const formattedInvoices = [...formattedStd].sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
     );
 
@@ -650,20 +615,12 @@ export class ReportService {
       companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined;
     const queryCompany: Record<string, any> = companyObjectId ? { companyId: companyObjectId } : {};
 
-    const [stdInvoices, travelInvoices, receipts, customers] = await Promise.all([
+    const [stdInvoices, receipts, customers] = await Promise.all([
       InvoiceModel.find({
         ...queryCompany,
         status: { $nin: ['Cancelled', 'cancelled', 'Void', 'void'] },
       })
         .sort({ issue_date: 1, createdAt: 1 })
-        .lean()
-        .exec(),
-      TravelInvoiceModel.find({
-        ...queryCompany,
-        status: { $in: ['unpaid', 'partially_paid', 'overdue'] },
-      })
-        .populate('customerId')
-        .sort({ createdAt: 1 })
         .lean()
         .exec(),
       ReceiptModel.find({
@@ -728,18 +685,7 @@ export class ReportService {
       };
     });
 
-    const fifoTravel: FifoInvoiceInput[] = travelInvoices.map((inv: any) => ({
-      id: inv._id.toString(),
-      mongoId: inv._id.toString(),
-      customerId: inv.customerId ? ((inv.customerId as any)._id?.toString() || inv.customerId.toString()) : undefined,
-      customerName: (inv.customerId as any)?.name || 'Customer',
-      grandTotal: inv.amount || 0,
-      advancePaid: 0,
-      date: inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : '',
-      createdAt: inv.createdAt ? new Date(inv.createdAt) : new Date(),
-    }));
-
-    const fifoInvoices: FifoInvoiceInput[] = [...fifoStd, ...fifoTravel];
+    const fifoInvoices: FifoInvoiceInput[] = [...fifoStd];
 
     const fifoReceipts: FifoReceiptInput[] = receipts.map((rec) => ({
       id: rec._id.toString(),
@@ -802,41 +748,7 @@ export class ReportService {
       };
     });
 
-    const outstandingTravel = travelInvoices.map((inv: any) => {
-      const grandTotal = CurrencyPrecision.round(inv.amount || 0);
-      const alloc = allocationResult.invoiceAllocations.get(inv._id.toString()) || {
-        paid: CurrencyPrecision.round(
-          (inv.payments || []).reduce((s: number, p: any) => s + (p.amount || 0), 0),
-        ),
-        remaining: grandTotal,
-        status: inv.status || 'unpaid',
-        advancePaid: 0,
-      };
-
-      const totalPaid = alloc.paid;
-      const remainingBalance = alloc.remaining;
-      const issueDate = inv.createdAt ? new Date(inv.createdAt) : new Date();
-      const dueDate = inv.dueDate ? new Date(inv.dueDate) : issueDate;
-      const diffTime = now.getTime() - dueDate.getTime();
-      const overdueDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-      const cust = inv.customerId as any;
-
-      return {
-        invoice_id: inv._id.toString(),
-        invoice_number: inv.invoiceNumber,
-        customer_name: cust?.name || 'Customer',
-        customer_id: cust?._id?.toString() || '',
-        invoice_date: issueDate.toISOString().split('T')[0],
-        due_date: dueDate.toISOString().split('T')[0],
-        original_amount: grandTotal,
-        total_paid: totalPaid,
-        remaining_balance: remainingBalance,
-        overdue_days: overdueDays,
-        status: overdueDays > 0 ? 'Overdue' : totalPaid > 0 ? 'Partially Paid' : 'Due Soon',
-      };
-    });
-
-    const allOutstanding = [...outstandingStd, ...outstandingTravel].filter(
+    const allOutstanding = [...outstandingStd].filter(
       (inv) => inv.remaining_balance > 0,
     );
 
