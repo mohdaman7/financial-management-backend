@@ -24,6 +24,8 @@ export class PdfGenerator {
     balance_amount?: number;
     amountInWords?: string;
     notes?: string;
+    created_by?: string;
+    createdBy?: string;
   }): Buffer {
     const discountSection =
       proposal.discount_amount && proposal.discount_amount > 0
@@ -124,7 +126,7 @@ ${proposal.items
 
 0 -40 Td
 /F1 10 Tf
-(Authorized Signatory: ${proposal.created_by || '_________________________'}) Tj
+(Authorized Signatory: ${proposal.created_by || proposal.createdBy || '_________________________'}) Tj
 0 -14 Td
 /F2 8 Tf
 (Generated electronically by Skyfall ERP System v2.4.0. Valid without physical stamp.) Tj

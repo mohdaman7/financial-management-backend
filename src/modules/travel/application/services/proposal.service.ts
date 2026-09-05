@@ -510,6 +510,7 @@ export class ProposalService {
       balance_amount: proposal.balance_amount || 0,
       amountInWords: proposal.amountInWords,
       notes: proposal.notes,
+      created_by: proposal.created_by || proposal.createdBy,
     });
 
     return { buffer, filename };
