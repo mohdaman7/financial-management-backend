@@ -154,8 +154,14 @@ export class ReportService {
       }
     }
     if (filters.start_date || filters.end_date) {
-      Object.assign(stdQuery, this.buildDateFilter(filters.start_date, filters.end_date, 'createdAt'));
-      Object.assign(travelQuery, this.buildDateFilter(filters.start_date, filters.end_date, 'createdAt'));
+      Object.assign(
+        stdQuery,
+        this.buildDateFilter(filters.start_date, filters.end_date, 'createdAt'),
+      );
+      Object.assign(
+        travelQuery,
+        this.buildDateFilter(filters.start_date, filters.end_date, 'createdAt'),
+      );
     }
 
     const [stdInvoices] = await Promise.all([
@@ -454,7 +460,8 @@ export class ReportService {
         );
       });
 
-      const totalRevenue = custStdInvoices.reduce((acc, i) => acc + (i.grand_total || 0), 0) || c.total_spent || 0;
+      const totalRevenue =
+        custStdInvoices.reduce((acc, i) => acc + (i.grand_total || 0), 0) || c.total_spent || 0;
       const invCount = custStdInvoices.length || (totalRevenue > 0 ? 1 : 0);
       const avgValue = invCount > 0 ? Math.round(totalRevenue / invCount) : 0;
 
@@ -497,7 +504,8 @@ export class ReportService {
     ).exec();
 
     const totalLeads = customers.length || 85;
-    const converted = customers.filter((c) => c.status === 'client' || (c.total_spent || 0) > 0).length || 54;
+    const converted =
+      customers.filter((c) => c.status === 'client' || (c.total_spent || 0) > 0).length || 54;
     const conversionRate = `${Math.round((converted / totalLeads) * 100)}%`;
 
     return {
@@ -510,11 +518,18 @@ export class ReportService {
   // 8b. Leads Report
   async getLeadsReport(
     companyId?: string,
-    filters: { lead_source?: string; priority?: string; start_date?: string; end_date?: string } = {},
+    filters: {
+      lead_source?: string;
+      priority?: string;
+      start_date?: string;
+      end_date?: string;
+    } = {},
   ) {
     const query: any = {};
-    if (companyId && Types.ObjectId.isValid(companyId)) query.companyId = new Types.ObjectId(companyId);
-    if (filters.lead_source && filters.lead_source !== 'all') query.lead_source = filters.lead_source;
+    if (companyId && Types.ObjectId.isValid(companyId))
+      query.companyId = new Types.ObjectId(companyId);
+    if (filters.lead_source && filters.lead_source !== 'all')
+      query.lead_source = filters.lead_source;
     if (filters.priority && filters.priority !== 'all') query.priority = filters.priority;
     if (filters.start_date || filters.end_date) {
       Object.assign(query, this.buildDateFilter(filters.start_date, filters.end_date, 'createdAt'));
@@ -522,7 +537,13 @@ export class ReportService {
 
     const leads = await CustomerModel.find(query).exec();
 
-    const sources = ['Google Search / SEO', 'Instagram Ads', 'Referral / Word of Mouth', 'Direct Walk-in', 'Corporate Partner'];
+    const sources = [
+      'Google Search / SEO',
+      'Instagram Ads',
+      'Referral / Word of Mouth',
+      'Direct Walk-in',
+      'Corporate Partner',
+    ];
     const sourceBreakdown = sources.map((s, idx) => {
       const weights = [0.35, 0.28, 0.18, 0.12, 0.07];
       return {
@@ -540,9 +561,17 @@ export class ReportService {
       },
       funnel: [
         { stage: 'New Inquiries', count: leads.length || 85, dropoff: '0%' },
-        { stage: 'Qualified Leads', count: Math.round((leads.length || 85) * 0.75), dropoff: '25%' },
+        {
+          stage: 'Qualified Leads',
+          count: Math.round((leads.length || 85) * 0.75),
+          dropoff: '25%',
+        },
         { stage: 'Proposal Sent', count: Math.round((leads.length || 85) * 0.55), dropoff: '27%' },
-        { stage: 'Converted / Booked', count: Math.round((leads.length || 85) * 0.40), dropoff: '27%' },
+        {
+          stage: 'Converted / Booked',
+          count: Math.round((leads.length || 85) * 0.4),
+          dropoff: '27%',
+        },
       ],
       sources_breakdown: sourceBreakdown,
       leads: leads.map((l) => ({
@@ -642,7 +671,9 @@ export class ReportService {
             const k = a.invoice_id.trim().toLowerCase();
             receiptAllocationsByInv.set(
               k,
-              CurrencyPrecision.round((receiptAllocationsByInv.get(k) || 0) + (a.allocated_amount || 0)),
+              CurrencyPrecision.round(
+                (receiptAllocationsByInv.get(k) || 0) + (a.allocated_amount || 0),
+              ),
             );
           }
         }
@@ -680,7 +711,9 @@ export class ReportService {
         customerName: inv.customer_name,
         grandTotal: inv.grand_total || 0,
         advancePaid,
-        date: inv.issue_date || (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : ''),
+        date:
+          inv.issue_date ||
+          (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : ''),
         createdAt: inv.createdAt ? new Date(inv.createdAt) : new Date(),
       };
     });
@@ -748,9 +781,7 @@ export class ReportService {
       };
     });
 
-    const allOutstanding = [...outstandingStd].filter(
-      (inv) => inv.remaining_balance > 0,
-    );
+    const allOutstanding = [...outstandingStd].filter((inv) => inv.remaining_balance > 0);
 
     const filtered = filters.min_overdue_days
       ? allOutstanding.filter((i) => i.overdue_days >= filters.min_overdue_days!)
@@ -861,9 +892,7 @@ export class ReportService {
     const totalInvoiced = CurrencyPrecision.round(
       ledgerEntries.reduce((acc, e) => acc + e.debit, 0),
     );
-    const totalPaid = CurrencyPrecision.round(
-      ledgerEntries.reduce((acc, e) => acc + e.credit, 0),
-    );
+    const totalPaid = CurrencyPrecision.round(ledgerEntries.reduce((acc, e) => acc + e.credit, 0));
 
     return {
       statement: {

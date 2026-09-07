@@ -215,11 +215,11 @@ export class InvoiceService {
     const advance_paid = CurrencyPrecision.round(
       Number(
         data.advance_paid ??
-        (data as any).advancePaid ??
-        data.advance_amount ??
-        (data as any).advanceAmount ??
-        0
-      )
+          (data as any).advancePaid ??
+          data.advance_amount ??
+          (data as any).advanceAmount ??
+          0,
+      ),
     );
 
     let paid_amount = 0;
@@ -249,9 +249,15 @@ export class InvoiceService {
     paid_amount = CurrencyPrecision.round(paid_amount);
 
     let balance_amount =
-      data.balance_amount !== undefined && data.balance_amount !== null && !isNaN(Number(data.balance_amount)) && explicitPaid === undefined
+      data.balance_amount !== undefined &&
+      data.balance_amount !== null &&
+      !isNaN(Number(data.balance_amount)) &&
+      explicitPaid === undefined
         ? Number(data.balance_amount)
-        : data.balanceAmount !== undefined && data.balanceAmount !== null && !isNaN(Number(data.balanceAmount)) && explicitPaid === undefined
+        : data.balanceAmount !== undefined &&
+            data.balanceAmount !== null &&
+            !isNaN(Number(data.balanceAmount)) &&
+            explicitPaid === undefined
           ? Number(data.balanceAmount)
           : Math.max(0, CurrencyPrecision.round(grand_total - paid_amount));
 
@@ -265,7 +271,12 @@ export class InvoiceService {
     } else if (paid_amount > 0 && paid_amount < grand_total) {
       status = 'Partially Paid';
     } else if (paid_amount === 0) {
-      if (!status || status.toLowerCase() === 'paid' || status.toLowerCase() === 'partially paid' || status.toLowerCase() === 'partially_paid') {
+      if (
+        !status ||
+        status.toLowerCase() === 'paid' ||
+        status.toLowerCase() === 'partially paid' ||
+        status.toLowerCase() === 'partially_paid'
+      ) {
         status = 'Pending';
       }
     }
@@ -324,7 +335,8 @@ export class InvoiceService {
     }
 
     const count = await this.invoiceRepository.count(companyId);
-    const invoiceNumber = data.invoice_number || (data as any).invoiceNumber || (18500 + count + 1).toString();
+    const invoiceNumber =
+      data.invoice_number || (data as any).invoiceNumber || (18500 + count + 1).toString();
     const customId = `inv-tajweed-${invoiceNumber}`;
 
     const financials = this.calculateFinancials(data);
@@ -362,8 +374,16 @@ export class InvoiceService {
       customer_phone: data.customer_phone || '',
       customer_address: data.customer_address || '',
       passenger_name: data.passenger_name || '',
-      lead_by: (data.lead_by && data.lead_by.trim().toLowerCase() !== 'sameer edakkadamban') ? data.lead_by.trim() : '',
-      lead_owner: (data.lead_owner && data.lead_owner.trim().toLowerCase() !== 'sameer edakkadamban') ? data.lead_owner.trim() : ((data.lead_by && data.lead_by.trim().toLowerCase() !== 'sameer edakkadamban') ? data.lead_by.trim() : ''),
+      lead_by:
+        data.lead_by && data.lead_by.trim().toLowerCase() !== 'sameer edakkadamban'
+          ? data.lead_by.trim()
+          : '',
+      lead_owner:
+        data.lead_owner && data.lead_owner.trim().toLowerCase() !== 'sameer edakkadamban'
+          ? data.lead_owner.trim()
+          : data.lead_by && data.lead_by.trim().toLowerCase() !== 'sameer edakkadamban'
+            ? data.lead_by.trim()
+            : '',
       employee: data.employee || 'Staff',
       category: data.category || 'Visa Services',
       issue_date: data.issue_date || new Date().toISOString().split('T')[0],
@@ -402,8 +422,10 @@ export class InvoiceService {
       const advances = await ReceiptModel.find({
         customerId: customerIdObj,
         status: { $nin: ['Cancelled', 'cancelled'] },
-        unallocated_amount: { $gt: 0 }
-      }).sort({ date: 1, createdAt: 1 }).exec();
+        unallocated_amount: { $gt: 0 },
+      })
+        .sort({ date: 1, createdAt: 1 })
+        .exec();
 
       for (const advanceRec of advances) {
         if (remainingInvoiceDue <= 0) break;
@@ -411,18 +433,22 @@ export class InvoiceService {
         const allocatable = Math.min(advanceRec.unallocated_amount!, remainingInvoiceDue);
         remainingInvoiceDue = CurrencyPrecision.round(remainingInvoiceDue - allocatable);
 
-        advanceRec.unallocated_amount = CurrencyPrecision.round(advanceRec.unallocated_amount! - allocatable);
+        advanceRec.unallocated_amount = CurrencyPrecision.round(
+          advanceRec.unallocated_amount! - allocatable,
+        );
         advanceRec.allocations = advanceRec.allocations || [];
         advanceRec.allocations.push({
           invoice_id: invoice.invoice_number || invoice.custom_id || invoice._id.toString(),
           allocated_amount: allocatable,
-          remaining_invoice_balance: remainingInvoiceDue
+          remaining_invoice_balance: remainingInvoiceDue,
         });
         await advanceRec.save();
       }
 
       if (remainingInvoiceDue < invoice.balance_amount) {
-        invoice.paid_amount = CurrencyPrecision.round((invoice.paid_amount || 0) + (invoice.balance_amount - remainingInvoiceDue));
+        invoice.paid_amount = CurrencyPrecision.round(
+          (invoice.paid_amount || 0) + (invoice.balance_amount - remainingInvoiceDue),
+        );
         invoice.balance_amount = remainingInvoiceDue;
         invoice.status = remainingInvoiceDue <= 0 ? 'Paid' : 'Partially Paid';
         await invoice.save();
@@ -434,7 +460,9 @@ export class InvoiceService {
 
   private async computeFifoAllocationsForInvoices(
     companyId?: string,
-  ): Promise<Map<string, { paid: number; remaining: number; status: string; advancePaid: number }>> {
+  ): Promise<
+    Map<string, { paid: number; remaining: number; status: string; advancePaid: number }>
+  > {
     const companyObjectId =
       companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined;
     const queryCompany: Record<string, any> = companyObjectId ? { companyId: companyObjectId } : {};
@@ -466,7 +494,9 @@ export class InvoiceService {
             const k = a.invoice_id.trim().toLowerCase();
             receiptAllocationsByInv.set(
               k,
-              CurrencyPrecision.round((receiptAllocationsByInv.get(k) || 0) + (a.allocated_amount || 0)),
+              CurrencyPrecision.round(
+                (receiptAllocationsByInv.get(k) || 0) + (a.allocated_amount || 0),
+              ),
             );
           }
         }
@@ -504,7 +534,9 @@ export class InvoiceService {
         customerName: inv.customer_name,
         grandTotal: inv.grand_total || 0,
         advancePaid,
-        date: inv.issue_date || (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : ''),
+        date:
+          inv.issue_date ||
+          (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : ''),
         createdAt: inv.createdAt ? new Date(inv.createdAt) : new Date(),
       };
     });
@@ -537,7 +569,9 @@ export class InvoiceService {
     );
 
     // Sync database asynchronously
-    FifoAllocationEngine.persistAllocations(fifoInvoices, fifoReceipts, allocationResult).catch(() => {});
+    FifoAllocationEngine.persistAllocations(fifoInvoices, fifoReceipts, allocationResult).catch(
+      () => {},
+    );
 
     return allocationResult.invoiceAllocations;
   }
@@ -560,8 +594,8 @@ export class InvoiceService {
 
     const formattedList = invoices.map((inv) => {
       const allocation = allocationMap.get(inv._id.toString());
-      const paid = allocation !== undefined ? allocation.paid : (inv.paid_amount || 0);
-      const remaining = allocation !== undefined ? allocation.remaining : (inv.balance_amount || 0);
+      const paid = allocation !== undefined ? allocation.paid : inv.paid_amount || 0;
+      const remaining = allocation !== undefined ? allocation.remaining : inv.balance_amount || 0;
       const status = allocation !== undefined ? allocation.status : inv.status;
       const custIdStr = inv.customer_id ? inv.customer_id.toString() : '';
 
@@ -635,14 +669,14 @@ export class InvoiceService {
       CustomerModel.find(queryCompany).lean().exec(),
     ]);
 
-    const normalizeName = (name?: string) =>
-      (name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const normalizeName = (name?: string) => (name || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
     const nameToCustomerId = new Map<string, string>();
     for (const c of customers) {
       const cid = c._id.toString();
       if (c.name) nameToCustomerId.set(normalizeName(c.name), cid);
-      if ((c as any).company_name) nameToCustomerId.set(normalizeName((c as any).company_name), cid);
+      if ((c as any).company_name)
+        nameToCustomerId.set(normalizeName((c as any).company_name), cid);
     }
 
     const list: Array<any> = [];
@@ -668,7 +702,7 @@ export class InvoiceService {
 
       const resolvedCustId = inv.customer_id
         ? inv.customer_id.toString()
-        : (nameToCustomerId.get(normalizeName(inv.customer_name)) || '');
+        : nameToCustomerId.get(normalizeName(inv.customer_name)) || '';
 
       list.push({
         id: inv.custom_id || inv._id.toString(),
@@ -798,7 +832,7 @@ export class InvoiceService {
               ? Number(data.advance_amount)
               : (data as any).advanceAmount !== undefined
                 ? Number((data as any).advanceAmount)
-                : existing.advance_paid ?? 0,
+                : (existing.advance_paid ?? 0),
       paid_amount:
         data.paid_amount !== undefined
           ? Number(data.paid_amount)
@@ -924,8 +958,8 @@ export class InvoiceService {
     invoice: IInvoice,
     allocation?: { paid: number; remaining: number; status: string; advancePaid?: number },
   ): any {
-    const paid = allocation !== undefined ? allocation.paid : (invoice.paid_amount || 0);
-    const remaining = allocation !== undefined ? allocation.remaining : (invoice.balance_amount || 0);
+    const paid = allocation !== undefined ? allocation.paid : invoice.paid_amount || 0;
+    const remaining = allocation !== undefined ? allocation.remaining : invoice.balance_amount || 0;
     const status = allocation !== undefined ? allocation.status : invoice.status;
 
     return {

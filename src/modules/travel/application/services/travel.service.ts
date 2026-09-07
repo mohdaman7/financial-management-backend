@@ -169,7 +169,6 @@ export class TravelService {
     return proposal;
   }
 
-
   async getCustomerById(id: string): Promise<ITravelCustomer> {
     const customer = await this.travelRepository.findCustomerById(id);
     if (!customer) {

@@ -145,8 +145,7 @@ export class CustomerService {
         ? new Types.ObjectId(rawCompanyId)
         : undefined;
 
-    const rawEmpId =
-      data.assigned_employee_id || data.assignedEmployee || data.assigned_agent_id;
+    const rawEmpId = data.assigned_employee_id || data.assignedEmployee || data.assigned_agent_id;
     const assignedEmployeeId =
       rawEmpId && Types.ObjectId.isValid(rawEmpId) ? new Types.ObjectId(rawEmpId) : undefined;
 
@@ -185,8 +184,7 @@ export class CustomerService {
 
     const { assignedEmployee, ...restData } = data;
     const updatePayload: any = { ...restData };
-    const empId =
-      data.assigned_employee_id || data.assignedEmployee || data.assigned_agent_id;
+    const empId = data.assigned_employee_id || data.assignedEmployee || data.assigned_agent_id;
     if (empId && Types.ObjectId.isValid(empId)) {
       updatePayload.assigned_employee_id = new Types.ObjectId(empId);
       updatePayload.assignedEmployee = new Types.ObjectId(empId);
@@ -353,7 +351,9 @@ export class CustomerService {
         {
           $or: [
             { customer_id: customerId },
-            ...(escapedName ? [{ customer_name: { $regex: `^${escapedName}$`, $options: 'i' } }] : []),
+            ...(escapedName
+              ? [{ customer_name: { $regex: `^${escapedName}$`, $options: 'i' } }]
+              : []),
           ],
         },
         { status: { $nin: ['Cancelled', 'cancelled', 'Void', 'void'] } },
@@ -366,7 +366,9 @@ export class CustomerService {
         {
           $or: [
             { customerId: customerId },
-            ...(escapedName ? [{ customerName: { $regex: `^${escapedName}$`, $options: 'i' } }] : []),
+            ...(escapedName
+              ? [{ customerName: { $regex: `^${escapedName}$`, $options: 'i' } }]
+              : []),
           ],
         },
         { status: { $nin: ['Cancelled', 'cancelled'] } },
@@ -417,8 +419,12 @@ export class CustomerService {
           : CurrencyPrecision.round(Math.max(0, (rec.amount || 0) - allocatedTotal));
       const isAdvance = unallocated > 0;
       const defaultDesc = isAdvance
-        ? (rec.paymentMethod ? `${rec.paymentMethod} - Advance Payment` : 'Advance Payment')
-        : (rec.paymentMethod ? `${rec.paymentMethod} - Payment Receipt` : 'Receipt Payment');
+        ? rec.paymentMethod
+          ? `${rec.paymentMethod} - Advance Payment`
+          : 'Advance Payment'
+        : rec.paymentMethod
+          ? `${rec.paymentMethod} - Payment Receipt`
+          : 'Receipt Payment';
       const desc = rec.notes || defaultDesc;
 
       return {
@@ -449,9 +455,13 @@ export class CustomerService {
     }> = [];
 
     for (const inv of stdInvoices) {
-      const itemsDesc = inv.items?.map((i) => i.description).filter(Boolean).join(', ');
+      const itemsDesc = inv.items
+        ?.map((i) => i.description)
+        .filter(Boolean)
+        .join(', ');
       const desc = itemsDesc || inv.service || inv.remarks || `Invoice ${inv.invoice_number}`;
-      const invDate = inv.issue_date || (inv.createdAt ? inv.createdAt.toISOString().split('T')[0] : '');
+      const invDate =
+        inv.issue_date || (inv.createdAt ? inv.createdAt.toISOString().split('T')[0] : '');
 
       formattedInvoices.push({
         id: inv._id.toString(),
@@ -461,7 +471,9 @@ export class CustomerService {
         description: desc,
         debit: CurrencyPrecision.round(inv.grand_total || 0),
         credit: 0.0,
-        outstanding: CurrencyPrecision.round(inv.balance_amount !== undefined ? inv.balance_amount : (inv.grand_total || 0)),
+        outstanding: CurrencyPrecision.round(
+          inv.balance_amount !== undefined ? inv.balance_amount : inv.grand_total || 0,
+        ),
         status: (inv.status || 'pending').toLowerCase().replace(/\s+/g, '_'),
         createdAt: inv.createdAt,
       });
@@ -598,12 +610,8 @@ export class CustomerService {
       filtered = filtered.filter((e) => e.type === filters.type);
     }
 
-    const totalDebit = CurrencyPrecision.round(
-      filtered.reduce((acc, e) => acc + e.debit, 0),
-    );
-    const totalCredit = CurrencyPrecision.round(
-      filtered.reduce((acc, e) => acc + e.credit, 0),
-    );
+    const totalDebit = CurrencyPrecision.round(filtered.reduce((acc, e) => acc + e.debit, 0));
+    const totalCredit = CurrencyPrecision.round(filtered.reduce((acc, e) => acc + e.credit, 0));
 
     const openingBalance = CurrencyPrecision.round(customer.opening_balance || 0);
     const closingBalance =
@@ -684,7 +692,10 @@ export class CustomerService {
     }
 
     if (!stdInvoice) {
-      throw AppError.notFound('Invoice specified for credit allocation was not found', 'INVOICE_NOT_FOUND');
+      throw AppError.notFound(
+        'Invoice specified for credit allocation was not found',
+        'INVOICE_NOT_FOUND',
+      );
     }
 
     const targetInvoiceId = stdInvoice._id.toString();

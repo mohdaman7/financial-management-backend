@@ -3,10 +3,7 @@ import { CustomerController } from '../controllers/customer.controller';
 import { authenticate, authorizeCompany } from '@shared/middleware/auth.middleware';
 import { uploadMemory } from '@shared/middleware/gridfs.middleware';
 import { validate } from '@shared/middleware/validate.middleware';
-import {
-  customerLedgerQuerySchema,
-  allocateCreditSchema,
-} from '../validators/customer.validator';
+import { customerLedgerQuerySchema, allocateCreditSchema } from '../validators/customer.validator';
 
 const router = Router();
 const controller = new CustomerController();
@@ -33,7 +30,12 @@ router.delete('/:id/documents/:docId', authenticate, authorizeCompany, controlle
 router.get('/:id/activity-log', authenticate, authorizeCompany, controller.getActivityLog);
 
 // Customer Financial Summary & Ledger
-router.get('/:id/financial-summary', authenticate, authorizeCompany, controller.getFinancialSummary);
+router.get(
+  '/:id/financial-summary',
+  authenticate,
+  authorizeCompany,
+  controller.getFinancialSummary,
+);
 router.get(
   '/:id/ledger',
   authenticate,
@@ -50,4 +52,3 @@ router.post(
 );
 
 export default router;
-

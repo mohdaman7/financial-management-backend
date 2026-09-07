@@ -143,6 +143,4 @@ router.delete(
   controller.deleteProposal,
 );
 
-
-
 export default router;

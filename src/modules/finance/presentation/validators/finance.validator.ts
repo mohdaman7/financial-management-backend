@@ -117,5 +117,3 @@ export const advancePaymentsQuerySchema = z.object({
     .transform((val) => Math.max(1, Math.min(500, parseInt(String(val), 10) || 50)))
     .optional(),
 });
-
-

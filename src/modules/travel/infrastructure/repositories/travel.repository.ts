@@ -93,5 +93,4 @@ export class TravelRepository {
   async deleteProposal(id: string): Promise<ITravelProposal | null> {
     return TravelProposalModel.findByIdAndDelete(id).exec();
   }
-
 }

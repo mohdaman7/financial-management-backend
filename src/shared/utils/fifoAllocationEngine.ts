@@ -71,7 +71,7 @@ export class FifoAllocationEngine {
   public static buildCustomerIdentityMap(
     customers: CustomerIdentity[] = [],
     invoices: FifoInvoiceInput[] = [],
-    receipts: FifoReceiptInput[] = []
+    receipts: FifoReceiptInput[] = [],
   ): {
     idToKey: Map<string, string>;
     nameToKey: Map<string, string>;
@@ -135,9 +135,13 @@ export class FifoAllocationEngine {
   public static calculate(
     invoices: FifoInvoiceInput[],
     receipts: FifoReceiptInput[],
-    customers: CustomerIdentity[] = []
+    customers: CustomerIdentity[] = [],
   ): FifoAllocationResult {
-    const { idToKey, nameToKey, keyToCustomer } = this.buildCustomerIdentityMap(customers, invoices, receipts);
+    const { idToKey, nameToKey, keyToCustomer } = this.buildCustomerIdentityMap(
+      customers,
+      invoices,
+      receipts,
+    );
 
     const getCustomerKey = (customerId?: string, customerName?: string): string => {
       if (customerId && idToKey.has(customerId)) {
@@ -245,9 +249,13 @@ export class FifoAllocationEngine {
           if (unallocatedCustomerCredit <= 0) break;
           if (st.currentBalance > 0) {
             const applyAmount = Math.min(unallocatedCustomerCredit, st.currentBalance);
-            st.allocatedFromReceipts = CurrencyPrecision.round(st.allocatedFromReceipts + applyAmount);
+            st.allocatedFromReceipts = CurrencyPrecision.round(
+              st.allocatedFromReceipts + applyAmount,
+            );
             st.currentBalance = CurrencyPrecision.round(st.currentBalance - applyAmount);
-            unallocatedCustomerCredit = CurrencyPrecision.round(unallocatedCustomerCredit - applyAmount);
+            unallocatedCustomerCredit = CurrencyPrecision.round(
+              unallocatedCustomerCredit - applyAmount,
+            );
           }
         }
       }
@@ -261,15 +269,25 @@ export class FifoAllocationEngine {
         if (rec.allocations && rec.allocations.length > 0) {
           for (const directAlloc of rec.allocations) {
             if (recRemaining <= 0) break;
-            const targetRef = directAlloc.invoice_id ? directAlloc.invoice_id.trim().toLowerCase() : '';
+            const targetRef = directAlloc.invoice_id
+              ? directAlloc.invoice_id.trim().toLowerCase()
+              : '';
             const targetSt = invoiceMap.get(targetRef);
             if (targetSt && targetSt.currentBalance > 0) {
               const maxAlloc = CurrencyPrecision.round(
-                Math.min(recRemaining, targetSt.currentBalance, directAlloc.allocated_amount || recRemaining)
+                Math.min(
+                  recRemaining,
+                  targetSt.currentBalance,
+                  directAlloc.allocated_amount || recRemaining,
+                ),
               );
               if (maxAlloc > 0) {
-                targetSt.allocatedFromReceipts = CurrencyPrecision.round(targetSt.allocatedFromReceipts + maxAlloc);
-                targetSt.currentBalance = CurrencyPrecision.round(targetSt.currentBalance - maxAlloc);
+                targetSt.allocatedFromReceipts = CurrencyPrecision.round(
+                  targetSt.allocatedFromReceipts + maxAlloc,
+                );
+                targetSt.currentBalance = CurrencyPrecision.round(
+                  targetSt.currentBalance - maxAlloc,
+                );
                 recAllocated = CurrencyPrecision.round(recAllocated + maxAlloc);
                 recRemaining = CurrencyPrecision.round(recRemaining - maxAlloc);
               }
@@ -279,9 +297,13 @@ export class FifoAllocationEngine {
           const targetRef = rec.invoiceId.trim().toLowerCase();
           const targetSt = invoiceMap.get(targetRef);
           if (targetSt && targetSt.currentBalance > 0) {
-            const maxAlloc = CurrencyPrecision.round(Math.min(recRemaining, targetSt.currentBalance));
+            const maxAlloc = CurrencyPrecision.round(
+              Math.min(recRemaining, targetSt.currentBalance),
+            );
             if (maxAlloc > 0) {
-              targetSt.allocatedFromReceipts = CurrencyPrecision.round(targetSt.allocatedFromReceipts + maxAlloc);
+              targetSt.allocatedFromReceipts = CurrencyPrecision.round(
+                targetSt.allocatedFromReceipts + maxAlloc,
+              );
               targetSt.currentBalance = CurrencyPrecision.round(targetSt.currentBalance - maxAlloc);
               recAllocated = CurrencyPrecision.round(recAllocated + maxAlloc);
               recRemaining = CurrencyPrecision.round(recRemaining - maxAlloc);
@@ -296,7 +318,9 @@ export class FifoAllocationEngine {
             if (st.currentBalance > 0) {
               const allocate = CurrencyPrecision.round(Math.min(recRemaining, st.currentBalance));
               if (allocate > 0) {
-                st.allocatedFromReceipts = CurrencyPrecision.round(st.allocatedFromReceipts + allocate);
+                st.allocatedFromReceipts = CurrencyPrecision.round(
+                  st.allocatedFromReceipts + allocate,
+                );
                 st.currentBalance = CurrencyPrecision.round(st.currentBalance - allocate);
                 recAllocated = CurrencyPrecision.round(recAllocated + allocate);
                 recRemaining = CurrencyPrecision.round(recRemaining - allocate);
@@ -319,7 +343,9 @@ export class FifoAllocationEngine {
 
         // Any leftover unallocated receipt adds to available customer credit pool
         if (recRemaining > 0) {
-          unallocatedCustomerCredit = CurrencyPrecision.round(unallocatedCustomerCredit + recRemaining);
+          unallocatedCustomerCredit = CurrencyPrecision.round(
+            unallocatedCustomerCredit + recRemaining,
+          );
         }
       }
 
@@ -328,7 +354,7 @@ export class FifoAllocationEngine {
       // 4. Finalize invoice allocation results
       for (const st of invStates) {
         const totalPaid = CurrencyPrecision.round(
-          Math.min(st.grandTotal, st.advancePaid + st.allocatedFromReceipts)
+          Math.min(st.grandTotal, st.advancePaid + st.allocatedFromReceipts),
         );
         const finalBalance = CurrencyPrecision.round(Math.max(0, st.grandTotal - totalPaid));
 
@@ -369,11 +395,12 @@ export class FifoAllocationEngine {
   public static async persistAllocations(
     invoices: FifoInvoiceInput[],
     receipts: FifoReceiptInput[],
-    result: FifoAllocationResult
+    result: FifoAllocationResult,
   ): Promise<void> {
     const invoiceBulkOps = [];
     for (const inv of invoices) {
-      const alloc = result.invoiceAllocations.get(inv.id) || result.invoiceAllocations.get(inv.mongoId);
+      const alloc =
+        result.invoiceAllocations.get(inv.id) || result.invoiceAllocations.get(inv.mongoId);
       if (alloc) {
         const updateFields: any = {
           paid_amount: alloc.paid,
@@ -381,7 +408,11 @@ export class FifoAllocationEngine {
           status: alloc.status,
           advance_paid: alloc.advancePaid,
         };
-        if (alloc.resolvedCustomerId && !inv.customerId && Types.ObjectId.isValid(alloc.resolvedCustomerId)) {
+        if (
+          alloc.resolvedCustomerId &&
+          !inv.customerId &&
+          Types.ObjectId.isValid(alloc.resolvedCustomerId)
+        ) {
           updateFields.customer_id = new Types.ObjectId(alloc.resolvedCustomerId);
         }
 
@@ -398,7 +429,8 @@ export class FifoAllocationEngine {
 
     const receiptBulkOps = [];
     for (const rec of receipts) {
-      const alloc = result.receiptAllocations.get(rec.id) || result.receiptAllocations.get(rec.mongoId);
+      const alloc =
+        result.receiptAllocations.get(rec.id) || result.receiptAllocations.get(rec.mongoId);
       if (alloc) {
         receiptBulkOps.push({
           updateOne: {

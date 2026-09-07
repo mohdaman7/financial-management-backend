@@ -164,5 +164,4 @@ export class TravelController {
       next(error);
     }
   };
-
 }

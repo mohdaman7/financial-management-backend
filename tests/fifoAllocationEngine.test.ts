@@ -1,4 +1,8 @@
-import { FifoAllocationEngine, FifoInvoiceInput, FifoReceiptInput } from '../src/shared/utils/fifoAllocationEngine';
+import {
+  FifoAllocationEngine,
+  FifoInvoiceInput,
+  FifoReceiptInput,
+} from '../src/shared/utils/fifoAllocationEngine';
 
 describe('FifoAllocationEngine', () => {
   it('should correctly calculate starting due with advance_paid', () => {

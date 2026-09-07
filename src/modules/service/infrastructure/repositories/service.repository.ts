@@ -31,10 +31,17 @@ export class ServiceRepository {
       .exec();
   }
 
-  async findByServiceName(companyId: string | undefined, name: string, category?: string): Promise<IService | null> {
+  async findByServiceName(
+    companyId: string | undefined,
+    name: string,
+    category?: string,
+  ): Promise<IService | null> {
     const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const query: any = {
-      $or: [{ name: new RegExp(`^${escapedName}$`, 'i') }, { serviceName: new RegExp(`^${escapedName}$`, 'i') }],
+      $or: [
+        { name: new RegExp(`^${escapedName}$`, 'i') },
+        { serviceName: new RegExp(`^${escapedName}$`, 'i') },
+      ],
     };
     if (category) {
       query.category = category;
@@ -48,17 +55,23 @@ export class ServiceRepository {
   async findAll(
     params: ServiceFilterParams,
   ): Promise<{ services: IService[]; total: number; page: number; limit: number }> {
-    const { category, sub_category, status, priority, search, companyId, page = 1, limit = 100 } = params;
+    const {
+      category,
+      sub_category,
+      status,
+      priority,
+      search,
+      companyId,
+      page = 1,
+      limit = 100,
+    } = params;
     const query: any = {};
 
     if (category) {
       query.category = category;
     }
     if (sub_category) {
-      query.$or = [
-        { sub_category: sub_category },
-        { subCategory: sub_category },
-      ];
+      query.$or = [{ sub_category: sub_category }, { subCategory: sub_category }];
     }
     if (status) {
       query.status = status;
@@ -83,10 +96,7 @@ export class ServiceRepository {
         { tags: searchRegex },
       ];
       if (query.$or) {
-        query.$and = [
-          { $or: query.$or },
-          { $or: searchConditions }
-        ];
+        query.$and = [{ $or: query.$or }, { $or: searchConditions }];
         delete query.$or;
       } else {
         query.$or = searchConditions;

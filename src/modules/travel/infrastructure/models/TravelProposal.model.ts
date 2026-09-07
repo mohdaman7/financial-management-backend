@@ -108,7 +108,6 @@ const TravelProposalSchema = new Schema<ITravelProposal>(
       enum: ['draft', 'sent', 'accepted', 'declined', 'expired', 'approved', 'rejected'],
       default: 'draft',
     },
-
   },
   {
     timestamps: true,

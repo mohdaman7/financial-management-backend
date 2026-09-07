@@ -98,7 +98,11 @@ export class ServiceService {
       throw AppError.badRequest('Service name is required');
     }
 
-    const existing = await this.serviceRepository.findByServiceName(companyId, normalized.name, normalized.category);
+    const existing = await this.serviceRepository.findByServiceName(
+      companyId,
+      normalized.name,
+      normalized.category,
+    );
     if (existing) {
       throw AppError.conflict('Service with this name already exists');
     }

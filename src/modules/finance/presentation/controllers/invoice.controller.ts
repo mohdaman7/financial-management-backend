@@ -9,11 +9,10 @@ export class InvoiceController {
 
   createInvoice = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
+      console.log("invoice created")
       const companyId = req.companyId as string | undefined;
       const createdBy = (req.user as any)?.name || req.user?.email || 'System';
 
-      console.log("BACKEND RECEIVED INVOICE PAYLOAD:", req.body);
-      
       const invoice = await this.getInvoiceService().createInvoice(companyId, req.body, createdBy);
 
       res.status(201).json({
@@ -28,7 +27,9 @@ export class InvoiceController {
 
   listInvoices = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
+      console.log("invoice listed")
       const companyId = req.companyId as string | undefined;
+
       const { status, lead_owner, start_date, end_date, search, page, limit } = req.query as Record<
         string,
         string | undefined

@@ -167,11 +167,15 @@ export class DashboardService {
       InvoiceModel.find({
         ...queryCompany,
         status: { $nin: ['Cancelled', 'cancelled', 'Void', 'void'] },
-      }).lean().exec(),
+      })
+        .lean()
+        .exec(),
       ReceiptModel.find({
         ...queryCompany,
         status: { $nin: ['Cancelled', 'cancelled'] },
-      }).lean().exec(),
+      })
+        .lean()
+        .exec(),
     ]);
 
     const now = new Date();
@@ -184,7 +188,7 @@ export class DashboardService {
     let monthSales = 0;
     let paidCount = 0;
     let invoiceDepositTotal = 0;
-    
+
     let cashOnHand = 0;
     let cashToAccount = 0;
 
@@ -208,8 +212,14 @@ export class DashboardService {
         }
       }
 
-      const invDate = inv.issue_date || (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : '');
-      const rawDate = inv.issue_date ? new Date(inv.issue_date) : inv.createdAt ? new Date(inv.createdAt) : now;
+      const invDate =
+        inv.issue_date ||
+        (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : '');
+      const rawDate = inv.issue_date
+        ? new Date(inv.issue_date)
+        : inv.createdAt
+          ? new Date(inv.createdAt)
+          : now;
 
       if (invDate === todayStr) {
         todaySales += amount;
@@ -218,7 +228,10 @@ export class DashboardService {
         monthSales += amount;
       }
 
-      if (inv.status === 'Paid' || (inv.balance_amount !== undefined && inv.balance_amount <= 0 && amount > 0)) {
+      if (
+        inv.status === 'Paid' ||
+        (inv.balance_amount !== undefined && inv.balance_amount <= 0 && amount > 0)
+      ) {
         paidCount++;
       }
 
@@ -251,8 +264,10 @@ export class DashboardService {
     const outstanding = CurrencyPrecision.round(Math.max(0, totalRevenue - totalReceived));
     const advanceTotal = CurrencyPrecision.round(Math.max(0, totalReceived - totalRevenue));
     const totalInvoices = invoices.length;
-    const avgRevenue = totalInvoices > 0 ? CurrencyPrecision.round(totalRevenue / totalInvoices) : 0;
-    const conversionRate = totalInvoices > 0 ? ((paidCount / totalInvoices) * 100).toFixed(1) : '0.0';
+    const avgRevenue =
+      totalInvoices > 0 ? CurrencyPrecision.round(totalRevenue / totalInvoices) : 0;
+    const conversionRate =
+      totalInvoices > 0 ? ((paidCount / totalInvoices) * 100).toFixed(1) : '0.0';
 
     const chartData = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => {
       const entry = chartMap.get(day) || { revenue: 0, bookings: 0 };

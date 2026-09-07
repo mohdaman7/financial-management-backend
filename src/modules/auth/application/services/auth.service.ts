@@ -222,7 +222,9 @@ export class AuthService {
         isSuperAdmin: user.isSuperAdmin,
         companyId: user.companyId?.toString() || undefined,
         roleId: user.roleId?.toString(),
-        permissions: profile.permissions || (user.isSuperAdmin ? ['*'] : this.resolvePermissions(currentRole, roleObj)),
+        permissions:
+          profile.permissions ||
+          (user.isSuperAdmin ? ['*'] : this.resolvePermissions(currentRole, roleObj)),
       },
     };
   }
@@ -252,7 +254,10 @@ export class AuthService {
       const user = await this.userRepository.findById(decoded.id);
 
       if (!user || user.refreshToken !== token || user.status === 'inactive') {
-        throw AppError.unauthorized('Refresh token invalid or expired. Please sign in again.', 'INVALID_TOKEN');
+        throw AppError.unauthorized(
+          'Refresh token invalid or expired. Please sign in again.',
+          'INVALID_TOKEN',
+        );
       }
 
       const roleObj = user.roleId ? (user.roleId as unknown as IRole) : undefined;
@@ -267,7 +272,10 @@ export class AuthService {
         expires_in: 86400,
       };
     } catch {
-      throw AppError.unauthorized('Refresh token invalid or expired. Please sign in again.', 'INVALID_TOKEN');
+      throw AppError.unauthorized(
+        'Refresh token invalid or expired. Please sign in again.',
+        'INVALID_TOKEN',
+      );
     }
   }
 

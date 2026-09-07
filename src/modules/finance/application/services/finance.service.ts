@@ -402,7 +402,10 @@ export class FinanceService {
 
     const isCash = (val?: string): boolean => {
       if (!val) return false;
-      const clean = val.trim().toLowerCase().replace(/[\s_-]+/g, '');
+      const clean = val
+        .trim()
+        .toLowerCase()
+        .replace(/[\s_-]+/g, '');
       return clean === 'cash';
     };
 
@@ -470,19 +473,14 @@ export class FinanceService {
         rawDate: tx.date ? new Date(tx.date) : new Date(),
         reference: ref,
         description:
-          tx.description ||
-          `${deposit > 0 ? 'Bank Deposit' : 'Bank Withdrawal'} - ${customerName}`,
+          tx.description || `${deposit > 0 ? 'Bank Deposit' : 'Bank Withdrawal'} - ${customerName}`,
         customerName,
         paymentMethod: normalizeMethod(tx.paymentMethod),
         deposit,
         withdrawal,
         runningBalance: 0,
         status:
-          tx.status === 'completed'
-            ? 'Cleared'
-            : tx.status === 'pending'
-              ? 'Pending'
-              : 'Cleared',
+          tx.status === 'completed' ? 'Cleared' : tx.status === 'pending' ? 'Pending' : 'Cleared',
       });
     }
 
@@ -583,8 +581,7 @@ export class FinanceService {
 
           if (cost > 0 && (hasSupplier || item.withdrawDt) && isBankAcc) {
             const suppRef =
-              item.transNo ||
-              `WDR-SUPP-${invRef}${inv.items.length > 1 ? `-${i + 1}` : ''}`;
+              item.transNo || `WDR-SUPP-${invRef}${inv.items.length > 1 ? `-${i + 1}` : ''}`;
             if (!seenRefs.has(suppRef.toLowerCase())) {
               seenRefs.add(suppRef.toLowerCase());
               const dateStr =
@@ -768,7 +765,10 @@ export class FinanceService {
 
     const normalizeMethod = (method?: string): string => {
       if (!method) return 'Bank Transfer';
-      const clean = method.trim().toLowerCase().replace(/[\s_-]+/g, '');
+      const clean = method
+        .trim()
+        .toLowerCase()
+        .replace(/[\s_-]+/g, '');
       if (clean === 'cash') return 'Cash';
       if (
         clean === 'banktransfer' ||
@@ -831,7 +831,9 @@ export class FinanceService {
             const k = a.invoice_id.trim().toLowerCase();
             receiptAllocationsByInv.set(
               k,
-              CurrencyPrecision.round((receiptAllocationsByInv.get(k) || 0) + (a.allocated_amount || 0)),
+              CurrencyPrecision.round(
+                (receiptAllocationsByInv.get(k) || 0) + (a.allocated_amount || 0),
+              ),
             );
           }
         }
@@ -869,7 +871,9 @@ export class FinanceService {
         customerName: inv.customer_name,
         grandTotal: inv.grand_total || 0,
         advancePaid,
-        date: inv.issue_date || (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : ''),
+        date:
+          inv.issue_date ||
+          (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : ''),
         createdAt: inv.createdAt ? new Date(inv.createdAt) : new Date(),
       };
     });
@@ -903,7 +907,9 @@ export class FinanceService {
     );
 
     // Sync DB asynchronously
-    FifoAllocationEngine.persistAllocations(fifoInvoices, fifoReceipts, allocationResult).catch(() => {});
+    FifoAllocationEngine.persistAllocations(fifoInvoices, fifoReceipts, allocationResult).catch(
+      () => {},
+    );
 
     // 4. Map receipts to AdvancePaymentItems
     interface CandidateAdvance {
@@ -948,13 +954,13 @@ export class FinanceService {
           ? rec.date.split('T')[0]
           : rec.date
         : rec.createdAt
-        ? new Date(rec.createdAt).toISOString().split('T')[0]
-        : '';
+          ? new Date(rec.createdAt).toISOString().split('T')[0]
+          : '';
       const rawDate = rec.date
         ? new Date(rec.date)
         : rec.createdAt
-        ? new Date(rec.createdAt)
-        : new Date();
+          ? new Date(rec.createdAt)
+          : new Date();
 
       allAdvances.push({
         id: '',

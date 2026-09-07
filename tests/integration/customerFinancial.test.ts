@@ -541,7 +541,9 @@ describe('Customer Account & Financial Ledger API Tests', () => {
         paymentMethod: 'Bank Transfer',
         status: 'Received',
         unallocated_amount: 500.0,
-        allocations: [{ invoice_id: 'INV-001', allocated_amount: 1500.0, remaining_invoice_balance: 0 }],
+        allocations: [
+          { invoice_id: 'INV-001', allocated_amount: 1500.0, remaining_invoice_balance: 0 },
+        ],
       });
 
       const res = await getTestAgent()

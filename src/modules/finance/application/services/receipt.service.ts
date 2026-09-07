@@ -37,7 +37,10 @@ export interface CreateReceiptDTO {
 
 function normalizePaymentMethod(method?: string): string {
   if (!method) return 'Bank Transfer';
-  const clean = method.trim().toLowerCase().replace(/[\s_-]+/g, '');
+  const clean = method
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, '');
   if (clean === 'cash') return 'Cash';
   if (clean === 'banktransfer' || clean === 'bank') return 'Bank Transfer';
   if (clean === 'card' || clean === 'creditcard' || clean === 'debitcard') return 'Card';
@@ -76,8 +79,8 @@ export class ReceiptService {
         allocatedTotal > 0
           ? allocatedTotal
           : recObj.unallocated_amount !== undefined
-          ? CurrencyPrecision.round(Math.max(0, recObj.amount - recObj.unallocated_amount))
-          : recObj.amount;
+            ? CurrencyPrecision.round(Math.max(0, recObj.amount - recObj.unallocated_amount))
+            : recObj.amount;
       const advance =
         recObj.unallocated_amount !== undefined
           ? recObj.unallocated_amount
@@ -195,7 +198,8 @@ export class ReceiptService {
         await stdInvoice.save();
 
         allocations.push({
-          invoice_id: stdInvoice.invoice_number || stdInvoice.custom_id || stdInvoice._id.toString(),
+          invoice_id:
+            stdInvoice.invoice_number || stdInvoice.custom_id || stdInvoice._id.toString(),
           allocated_amount: allocated,
           remaining_invoice_balance: newBalance,
         });
@@ -219,7 +223,9 @@ export class ReceiptService {
         stdQuery.customer_name = { $regex: `^${escaped}$`, $options: 'i' };
       }
 
-      const unpaidStandard = await InvoiceModel.find(stdQuery).sort({ issue_date: 1, createdAt: 1 }).exec();
+      const unpaidStandard = await InvoiceModel.find(stdQuery)
+        .sort({ issue_date: 1, createdAt: 1 })
+        .exec();
 
       interface CombinedInv {
         type: 'standard';
@@ -227,11 +233,13 @@ export class ReceiptService {
         createdAt: Date;
       }
 
-      const combined: CombinedInv[] = unpaidStandard.map((doc) => ({
-        type: 'standard' as const,
-        doc,
-        createdAt: doc.createdAt ? new Date(doc.createdAt) : new Date(),
-      })).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      const combined: CombinedInv[] = unpaidStandard
+        .map((doc) => ({
+          type: 'standard' as const,
+          doc,
+          createdAt: doc.createdAt ? new Date(doc.createdAt) : new Date(),
+        }))
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
       // Deduplicate by invoice number so dual-seeded test fixtures don't double allocate
       const seenInvoiceNumbers = new Set<string>();
@@ -291,15 +299,13 @@ export class ReceiptService {
     // Record Income Transaction in Finance module
     try {
       const txPm =
-        paymentMethod === 'Cash'
-          ? 'cash'
-          : paymentMethod === 'Card'
-          ? 'card'
-          : 'bank_transfer';
+        paymentMethod === 'Cash' ? 'cash' : paymentMethod === 'Card' ? 'card' : 'bank_transfer';
 
       await TransactionModel.create({
         companyId:
-          companyId && Types.ObjectId.isValid(companyId) ? new Types.ObjectId(companyId) : undefined,
+          companyId && Types.ObjectId.isValid(companyId)
+            ? new Types.ObjectId(companyId)
+            : undefined,
         type: 'income',
         category: 'Receipt Payment Inflow',
         amount: amount,
@@ -330,14 +336,10 @@ export class ReceiptService {
     }
 
     const validInvoiceObjectId =
-      invoiceId && Types.ObjectId.isValid(invoiceId)
-        ? new Types.ObjectId(invoiceId)
-        : undefined;
+      invoiceId && Types.ObjectId.isValid(invoiceId) ? new Types.ObjectId(invoiceId) : undefined;
 
     const validCustomerObjectId =
-      customerId && Types.ObjectId.isValid(customerId)
-        ? new Types.ObjectId(customerId)
-        : undefined;
+      customerId && Types.ObjectId.isValid(customerId) ? new Types.ObjectId(customerId) : undefined;
 
     const receipt = await this.receiptRepository.create({
       companyId:
@@ -370,7 +372,9 @@ export class ReceiptService {
       updatePayload.customerName = (data.customerName || data.customer_name)!.trim();
     }
     if (data.paymentMethod || data.payment_method) {
-      updatePayload.paymentMethod = normalizePaymentMethod(data.paymentMethod || data.payment_method);
+      updatePayload.paymentMethod = normalizePaymentMethod(
+        data.paymentMethod || data.payment_method,
+      );
     }
     if (data.amount !== undefined) {
       updatePayload.amount = CurrencyPrecision.round(Number(data.amount) || 0);
