@@ -152,6 +152,8 @@ export class DashboardService {
     totalInvoices: number;
     avgRevenue: number;
     conversionRate: string;
+    cashOnHand: number;
+    cashToAccount: number;
     chartData: Array<{ day: string; revenue: number; bookings: number }>;
     employeeSales: Array<{ name: string; value: number }>;
   }> {
@@ -182,6 +184,9 @@ export class DashboardService {
     let monthSales = 0;
     let paidCount = 0;
     let invoiceDepositTotal = 0;
+    
+    let cashOnHand = 0;
+    let cashToAccount = 0;
 
     const employeeMap = new Map<string, number>();
 
@@ -196,6 +201,11 @@ export class DashboardService {
       totalRevenue += amount;
       if (inv.advance_paid && inv.advance_paid > 0) {
         invoiceDepositTotal += inv.advance_paid;
+        if (inv.payment_terms === 'CASH') {
+          cashOnHand += inv.advance_paid;
+        } else {
+          cashToAccount += inv.advance_paid;
+        }
       }
 
       const invDate = inv.issue_date || (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : '');
@@ -224,7 +234,13 @@ export class DashboardService {
 
     let receiptTotal = 0;
     for (const rec of receipts) {
-      receiptTotal += CurrencyPrecision.round(rec.amount || 0);
+      const recAmt = CurrencyPrecision.round(rec.amount || 0);
+      receiptTotal += recAmt;
+      if (rec.paymentMethod === 'Cash') {
+        cashOnHand += recAmt;
+      } else {
+        cashToAccount += recAmt;
+      }
     }
 
     const totalReceived = CurrencyPrecision.round(receiptTotal + invoiceDepositTotal);
@@ -264,6 +280,8 @@ export class DashboardService {
       totalInvoices,
       avgRevenue,
       conversionRate,
+      cashOnHand: CurrencyPrecision.round(cashOnHand),
+      cashToAccount: CurrencyPrecision.round(cashToAccount),
       chartData,
       employeeSales,
     };
