@@ -1,5 +1,6 @@
 import { InvoiceModel } from '../../../finance/infrastructure/models/Invoice.model';
 import { ReceiptModel } from '../../../finance/infrastructure/models/Receipt.model';
+import { TransactionModel } from '../../../finance/infrastructure/models/Transaction.model';
 import { AttendanceRepository } from '../../../attendance/infrastructure/repositories/attendance.repository';
 import { EmployeeRepository } from '../../../employee/infrastructure/repositories/employee.repository';
 import { TransactionRepository } from '../../../finance/infrastructure/repositories/transaction.repository';
@@ -154,7 +155,8 @@ export class DashboardService {
     conversionRate: string;
     cashOnHand: number;
     cashToAccount: number;
-    chartData: Array<{ day: string; revenue: number; bookings: number }>;
+    totalExpenses: number;
+    chartData: Array<{ day: string; revenue: number; expenses: number }>;
     employeeSales: Array<{ name: string; value: number }>;
   }> {
     const companyObjectId =
@@ -163,7 +165,7 @@ export class DashboardService {
       ? { $or: [{ companyId: companyObjectId }, { companyId: null }] }
       : {};
 
-    const [invoices, receipts] = await Promise.all([
+    const [invoices, receipts, expenses] = await Promise.all([
       InvoiceModel.find({
         ...queryCompany,
         status: { $nin: ['Cancelled', 'cancelled', 'Void', 'void'] },
@@ -173,6 +175,12 @@ export class DashboardService {
       ReceiptModel.find({
         ...queryCompany,
         status: { $nin: ['Cancelled', 'cancelled'] },
+      })
+        .lean()
+        .exec(),
+      TransactionModel.find({
+        ...queryCompany,
+        type: 'expense',
       })
         .lean()
         .exec(),
@@ -195,9 +203,9 @@ export class DashboardService {
     const employeeMap = new Map<string, number>();
 
     const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const chartMap = new Map<string, { revenue: number; bookings: number }>();
+    const chartMap = new Map<string, { revenue: number; expenses: number }>();
     ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach((d) => {
-      chartMap.set(d, { revenue: 0, bookings: 0 });
+      chartMap.set(d, { revenue: 0, expenses: 0 });
     });
 
     for (const inv of invoices) {
@@ -256,6 +264,24 @@ export class DashboardService {
       }
     }
 
+    let totalExpenses = 0;
+    for (const exp of expenses) {
+      const amount = CurrencyPrecision.round(exp.amount || 0);
+      const rawDate = exp.date
+        ? new Date(exp.date)
+        : exp.createdAt
+          ? new Date(exp.createdAt)
+          : now;
+
+      const dayName = daysOfWeek[rawDate.getDay()];
+      const dayData = chartMap.get(dayName);
+      if (dayData) {
+        dayData.expenses = CurrencyPrecision.round(dayData.expenses + amount);
+      }
+      totalExpenses += amount;
+    }
+
+    totalExpenses = CurrencyPrecision.round(totalExpenses);
     const totalReceived = CurrencyPrecision.round(receiptTotal + invoiceDepositTotal);
     totalRevenue = CurrencyPrecision.round(totalRevenue);
     todaySales = CurrencyPrecision.round(todaySales);
@@ -270,11 +296,11 @@ export class DashboardService {
       totalInvoices > 0 ? ((paidCount / totalInvoices) * 100).toFixed(1) : '0.0';
 
     const chartData = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => {
-      const entry = chartMap.get(day) || { revenue: 0, bookings: 0 };
+      const entry = chartMap.get(day) || { revenue: 0, expenses: 0 };
       return {
         day,
         revenue: entry.revenue,
-        bookings: entry.bookings,
+        expenses: entry.expenses,
       };
     });
 
@@ -297,6 +323,7 @@ export class DashboardService {
       conversionRate,
       cashOnHand: CurrencyPrecision.round(cashOnHand),
       cashToAccount: CurrencyPrecision.round(cashToAccount),
+      totalExpenses,
       chartData,
       employeeSales,
     };

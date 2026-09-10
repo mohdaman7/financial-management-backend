@@ -12,14 +12,14 @@ export class EmployeeController {
   create = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const companyId = req.companyId as string; // From authorizeCompany middleware
-      const passwordHash = await bcrypt.hash(req.body.password, 10);
 
-      const employee = await this.getEmployeeService().createEmployee(companyId, {
-        ...req.body,
-        passwordHash,
-      });
+      const employee = await this.getEmployeeService().createEmployee(companyId, req.body);
+      const formattedEmployee = {
+        ...employee,
+        email: employee.userId && (employee.userId as any).email ? (employee.userId as any).email : req.body.email,
+      };
 
-      res.status(201).json(ResponseFormatter.success(employee));
+      res.status(201).json(ResponseFormatter.success(formattedEmployee));
     } catch (error) {
       next(error);
     }
@@ -29,7 +29,12 @@ export class EmployeeController {
     try {
       const id = req.params.id as string;
       const employee = await this.getEmployeeService().getEmployeeById(id);
-      res.status(200).json(ResponseFormatter.success(employee));
+      const employeeJson = (employee as any).toJSON ? (employee as any).toJSON() : employee;
+      const formattedEmployee = {
+        ...employeeJson,
+        email: employee.userId && (employee.userId as any).email ? (employee.userId as any).email : undefined,
+      };
+      res.status(200).json(ResponseFormatter.success(formattedEmployee));
     } catch (error) {
       next(error);
     }
@@ -39,7 +44,14 @@ export class EmployeeController {
     try {
       const companyId = req.companyId as string;
       const employees = await this.getEmployeeService().getCompanyEmployees(companyId);
-      res.status(200).json(ResponseFormatter.success(employees));
+      const formattedEmployees = employees.map(emp => {
+        const empJson = (emp as any).toJSON ? (emp as any).toJSON() : emp;
+        return {
+          ...empJson,
+          email: emp.userId && (emp.userId as any).email ? (emp.userId as any).email : undefined,
+        };
+      });
+      res.status(200).json(ResponseFormatter.success(formattedEmployees));
     } catch (error) {
       next(error);
     }
@@ -50,6 +62,16 @@ export class EmployeeController {
       const id = req.params.id as string;
       const employee = await this.getEmployeeService().updateEmployee(id, req.body);
       res.status(200).json(ResponseFormatter.success(employee));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  resetPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = req.params.id as string;
+      const plainPassword = await this.getEmployeeService().resetPassword(id);
+      res.status(200).json(ResponseFormatter.success({ plainPassword }));
     } catch (error) {
       next(error);
     }

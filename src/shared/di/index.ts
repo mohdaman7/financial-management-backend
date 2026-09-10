@@ -71,7 +71,7 @@ export function initializeContainer(): void {
   const userService = new UserService(userRepository);
   const roleService = new RoleService(roleRepository);
   const companyService = new CompanyService(companyRepository);
-  const employeeService = new EmployeeService(employeeRepository, userRepository);
+  const employeeService = new EmployeeService(employeeRepository, userRepository, roleRepository);
   const attendanceService = new AttendanceService(attendanceRepository);
   const dashboardService = new DashboardService(
     attendanceRepository,

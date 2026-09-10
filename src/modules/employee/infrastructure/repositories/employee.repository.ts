@@ -10,7 +10,8 @@ export class EmployeeRepository {
   }
 
   async findByCompanyId(companyId: string): Promise<IEmployee[]> {
-    return EmployeeModel.find({ companyId }).populate('userId').exec();
+    const query = companyId ? { companyId } : {};
+    return EmployeeModel.find(query).populate('userId').exec();
   }
 
   async create(data: Partial<IEmployee>): Promise<IEmployee> {

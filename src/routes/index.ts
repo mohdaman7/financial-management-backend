@@ -21,6 +21,7 @@ import searchRoutes from '@modules/dashboard/presentation/routes/search.routes';
 import importRoutes from '@modules/dashboard/presentation/routes/import.routes';
 import invoiceRoutes from '@modules/finance/presentation/routes/invoice.routes';
 import offerLetterRoutes from '@modules/employee/presentation/routes/offerLetter.routes';
+import leadOwnerRoutes from '@modules/lead_owner/presentation/routes/lead_owner.routes';
 
 const router = Router();
 
@@ -30,6 +31,7 @@ router.use('/roles', roleRoutes);
 router.use('/users', userRoutes);
 router.use('/companies', companyRoutes);
 router.use('/employees', employeeRoutes);
+router.use('/lead-owners', leadOwnerRoutes);
 router.use('/attendance', attendanceRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/finance', financeRoutes);

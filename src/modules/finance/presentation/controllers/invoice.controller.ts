@@ -20,7 +20,7 @@ export class InvoiceController {
         message: 'Invoice generated successfully',
         data: invoice,
       });
-    } catch (error) {
+    } catch (error) { 
       next(error);
     }
   };

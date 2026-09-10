@@ -156,6 +156,35 @@ router.put(
 
 /**
  * @openapi
+ * /employees/{id}/reset-password:
+ *   post:
+ *     tags:
+ *       - Employees
+ *     summary: Reset employee password (requires manage_employees permission)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Password reset successfully
+ *       404:
+ *         description: Employee not found
+ */
+router.post(
+  '/:id/reset-password',
+  authenticate,
+  requirePermission('manage_employees'),
+  authorizeCompany,
+  controller.resetPassword,
+);
+
+/**
+ * @openapi
  * /employees/{id}:
  *   delete:
  *     tags:

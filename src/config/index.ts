@@ -12,6 +12,11 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'http', 'debug']).default('info'),
   GRIDFS_BUCKET: z.string().default('uploads'),
   MAX_FILE_SIZE_MB: z.coerce.number().default(10),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().optional(),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  EMAIL_FROM: z.string().optional(),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
